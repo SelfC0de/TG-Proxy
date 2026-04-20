@@ -15,12 +15,14 @@
 		A006 /* SourcesFetcher.swift */= {isa = PBXBuildFile; fileRef = B006; };
 		A007 /* ProxiesView.swift */   = {isa = PBXBuildFile; fileRef = B007; };
 		A008 /* PingService.swift */   = {isa = PBXBuildFile; fileRef = B008; };
+		A009 /* MainProxyView.swift */ = {isa = PBXBuildFile; fileRef = B010; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		B001 /* TGProxyApp.swift */    = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TGProxyApp.swift;    sourceTree = "<group>"; };
 		B002 /* ContentView.swift */   = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift;   sourceTree = "<group>"; };
 		B003 /* ProxyFetcher.swift */  = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyFetcher.swift;  sourceTree = "<group>"; };
+		B010 /* MainProxyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainProxyView.swift; sourceTree = "<group>"; };
 		B004 /* Assets.xcassets */     = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B005 /* ProxyModel.swift */    = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyModel.swift;    sourceTree = "<group>"; };
 		B006 /* SourcesFetcher.swift */= {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourcesFetcher.swift;sourceTree = "<group>"; };
@@ -47,7 +49,7 @@
 		};
 		GRP1 /* TGProxy */ = {
 			isa = PBXGroup;
-			children = (B001, B002, B003, B005, B006, B007, B008, B004, B009);
+			children = (B001, B002, B003, B005, B006, B007, B008, B010, B004, B009);
 			path = TGProxy;
 			sourceTree = "<group>";
 		};
@@ -108,7 +110,7 @@
 		SRC1 = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
-			files = (A001, A002, A003, A005, A006, A007, A008);
+			files = (A001, A002, A003, A005, A006, A007, A008, A009);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */

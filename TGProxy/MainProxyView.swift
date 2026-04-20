@@ -1,0 +1,302 @@
+import SwiftUI
+
+struct MainProxyView: View {
+    @ObservedObject var fetcher: ProxyFetcher
+    @State private var appeared = false
+
+    var body: some View {
+        ZStack {
+            AppTheme.bg.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                headerSection
+                    .padding(.top, 56)
+
+                Spacer()
+
+                stateCard
+                    .padding(.horizontal, 20)
+
+                Spacer()
+
+                bottomButtons
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 96)
+            }
+        }
+        .onAppear {
+            withAnimation(.spring(response: 0.55, dampingFraction: 0.78)) {
+                appeared = true
+            }
+            fetcher.fetch()
+        }
+    }
+
+    // MARK: - Header
+
+    private var headerSection: some View {
+        VStack(spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(AppTheme.accent.opacity(0.12))
+                    .frame(width: 72, height: 72)
+                Circle()
+                    .stroke(AppTheme.accent.opacity(0.2), lineWidth: 1)
+                    .frame(width: 72, height: 72)
+                    .scaleEffect(appeared ? 1.18 : 1)
+                    .opacity(appeared ? 0 : 0.6)
+                    .animation(
+                        .easeOut(duration: 1.4).repeatForever(autoreverses: false),
+                        value: appeared
+                    )
+                Image(systemName: "paperplane.fill")
+                    .font(.system(size: 28, weight: .medium))
+                    .foregroundColor(.white)
+                    .rotationEffect(.degrees(-35))
+            }
+            .opacity(appeared ? 1 : 0)
+            .offset(y: appeared ? 0 : -12)
+            .animation(.spring(response: 0.5, dampingFraction: 0.8), value: appeared)
+
+            Text("TG Proxy")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundColor(.white)
+                .opacity(appeared ? 1 : 0)
+                .offset(y: appeared ? 0 : 8)
+                .animation(.spring(response: 0.5, dampingFraction: 0.8).delay(0.05), value: appeared)
+
+            Text("SelfCode")
+                .font(.system(size: 12, weight: .regular))
+                .foregroundColor(.white.opacity(0.3))
+                .opacity(appeared ? 1 : 0)
+                .animation(.easeOut(duration: 0.4).delay(0.1), value: appeared)
+        }
+    }
+
+    // MARK: - State card
+
+    @ViewBuilder
+    private var stateCard: some View {
+        switch fetcher.state {
+        case .idle:
+            loadingCard(progress: 0, label: "Подготовка…")
+        case .loading(let p):
+            loadingCard(progress: p, label: countdownLabel(p))
+        case .ready(let data):
+            readyCard(data: data)
+        case .error(let msg):
+            errorCard(msg: msg)
+        }
+    }
+
+    // MARK: - Loading card
+
+    private func loadingCard(progress: Double, label: String) -> some View {
+        VStack(spacing: 18) {
+            HStack {
+                Text("Получение прокси")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.white.opacity(0.5))
+                Spacer()
+                Text(String(format: "%.0f%%", progress * 100))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.8))
+                    .contentTransition(.numericText())
+                    .animation(.easeInOut(duration: 0.2), value: Int(progress * 100))
+            }
+
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.white.opacity(0.08)).frame(height: 4)
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [AppTheme.accent, Color(red: 0.4, green: 0.8, blue: 1.0)],
+                                startPoint: .leading, endPoint: .trailing
+                            )
+                        )
+                        .frame(width: max(8, geo.size.width * CGFloat(progress)), height: 4)
+                        .animation(.linear(duration: 0.15), value: progress)
+                }
+            }
+            .frame(height: 4)
+
+            HStack(spacing: 8) {
+                PulsingDot(color: AppTheme.accent)
+                Text(label)
+                    .font(.system(size: 12))
+                    .foregroundColor(.white.opacity(0.4))
+                    .contentTransition(.opacity)
+                    .animation(.easeInOut(duration: 0.3), value: label)
+            }
+        }
+        .padding(20)
+        .background(cardBackground)
+        .transition(.opacity.combined(with: .scale(scale: 0.97)))
+        .opacity(appeared ? 1 : 0)
+        .offset(y: appeared ? 0 : 16)
+        .animation(.spring(response: 0.5, dampingFraction: 0.8).delay(0.15), value: appeared)
+    }
+
+    // MARK: - Ready card
+
+    private func readyCard(data: ProxyData) -> some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Circle().fill(AppTheme.green).frame(width: 7, height: 7)
+                    .shadow(color: AppTheme.green.opacity(0.6), radius: 4)
+                Text("Прокси активен")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(AppTheme.green)
+                Spacer()
+                Text("mtproto.ru")
+                    .font(.system(size: 11))
+                    .foregroundColor(.white.opacity(0.25))
+            }
+            .padding(.bottom, 14)
+
+            Divider().background(Color.white.opacity(0.07)).padding(.bottom, 14)
+
+            InfoRow(label: "Сервер", value: shortServer(data.server))
+            Spacer().frame(height: 10)
+            InfoRow(label: "Порт", value: data.port)
+        }
+        .padding(20)
+        .background(cardBackground)
+        .transition(.asymmetric(
+            insertion: .opacity.combined(with: .offset(y: 12)),
+            removal:   .opacity.combined(with: .offset(y: -8))
+        ))
+    }
+
+    // MARK: - Error card
+
+    private func errorCard(msg: String) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 22))
+                .foregroundColor(AppTheme.amber)
+            Text(msg)
+                .font(.system(size: 13))
+                .foregroundColor(.white.opacity(0.5))
+                .multilineTextAlignment(.leading)
+            Spacer()
+        }
+        .padding(20)
+        .background(cardBackground)
+        .transition(.opacity.combined(with: .scale(scale: 0.97)))
+    }
+
+    // MARK: - Card background
+
+    private var cardBackground: some View {
+        RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .fill(AppTheme.card)
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.white.opacity(0.07), lineWidth: 0.5)
+            )
+    }
+
+    // MARK: - Bottom buttons
+
+    private var bottomButtons: some View {
+        VStack(spacing: 10) {
+            Button {
+                guard case .ready(let data) = fetcher.state,
+                      let url = URL(string: data.tgURL) else { return }
+                UIApplication.shared.open(url)
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "paperplane.fill")
+                        .font(.system(size: 14))
+                    Text("Подключить Telegram")
+                        .font(.system(size: 15, weight: .semibold))
+                }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 50)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(isReady ? AppTheme.accent : Color.white.opacity(0.07))
+                        .animation(.easeInOut(duration: 0.3), value: isReady)
+                )
+            }
+            .disabled(!isReady)
+            .opacity(appeared ? 1 : 0)
+            .offset(y: appeared ? 0 : 12)
+            .animation(.spring(response: 0.5, dampingFraction: 0.8).delay(0.2), value: appeared)
+
+            Button {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+                    fetcher.fetch()
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 13, weight: .medium))
+                    Text("Обновить")
+                        .font(.system(size: 14, weight: .medium))
+                }
+                .foregroundColor(.white.opacity(0.4))
+                .frame(maxWidth: .infinity)
+                .frame(height: 40)
+            }
+            .buttonStyle(.plain)
+            .opacity(appeared ? 1 : 0)
+            .animation(.easeOut(duration: 0.4).delay(0.25), value: appeared)
+        }
+    }
+
+    // MARK: - Helpers
+
+    private var isReady: Bool {
+        if case .ready = fetcher.state { return true }
+        return false
+    }
+
+    private func countdownLabel(_ p: Double) -> String {
+        let s = Int(ceil((1.0 - p) * 5.0))
+        return s > 0 ? "Ещё ~\(s) сек" : "Получаем данные…"
+    }
+
+    private func shortServer(_ s: String) -> String {
+        let parts = s.split(separator: ".")
+        return parts.count > 3 ? "…" + parts.dropFirst().joined(separator: ".") : s
+    }
+}
+
+// MARK: - Shared components
+
+struct InfoRow: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        HStack {
+            Text(label)
+                .font(.system(size: 12))
+                .foregroundColor(.white.opacity(0.35))
+            Spacer()
+            Text(value)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(.white.opacity(0.85))
+        }
+    }
+}
+
+struct PulsingDot: View {
+    let color: Color
+    @State private var pulsing = false
+
+    var body: some View {
+        ZStack {
+            Circle().fill(color.opacity(0.25)).frame(width: 14, height: 14)
+                .scaleEffect(pulsing ? 1.6 : 1)
+                .opacity(pulsing ? 0 : 0.7)
+                .animation(.easeOut(duration: 1.1).repeatForever(autoreverses: false), value: pulsing)
+            Circle().fill(color).frame(width: 7, height: 7)
+        }
+        .onAppear { pulsing = true }
+    }
+}

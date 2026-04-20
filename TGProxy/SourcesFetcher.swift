@@ -13,8 +13,8 @@ final class SourcesFetcher: NSObject, ObservableObject {
     private var webViews: [WKWebView] = []
     private var pendingWebSources = 0
 
-    // Sources that need JS rendering
-    private struct WebSource {
+    // fileprivate so WebContext (extension in same file) can access
+    fileprivate struct WebSource {
         let url: String
         let name: String
         let waitSeconds: Double
@@ -28,12 +28,12 @@ final class SourcesFetcher: NSObject, ObservableObject {
             waitSeconds: 3,
             jsExtract: """
             (function(){
-                var results=[];
+                var r=[];
                 document.querySelectorAll('.share-url').forEach(function(el){
                     var t=el.textContent.trim();
-                    if(t.startsWith('tg://proxy')) results.push(t);
+                    if(t.startsWith('tg://proxy')) r.push(t);
                 });
-                return JSON.stringify(results);
+                return JSON.stringify(r);
             })()
             """
         ),
@@ -43,11 +43,11 @@ final class SourcesFetcher: NSObject, ObservableObject {
             waitSeconds: 4,
             jsExtract: """
             (function(){
-                var results=[];
-                document.querySelectorAll('.proxy-grid .proxy-card a[href^="tg://proxy"], .proxy-grid .proxy-card a.btn-connect[href^="tg://proxy"]').forEach(function(a){
-                    results.push(a.href);
+                var r=[];
+                document.querySelectorAll('.proxy-grid a[href^="tg://proxy"]').forEach(function(a){
+                    r.push(a.href);
                 });
-                return JSON.stringify(results);
+                return JSON.stringify(r);
             })()
             """
         ),
@@ -57,14 +57,14 @@ final class SourcesFetcher: NSObject, ObservableObject {
             waitSeconds: 4,
             jsExtract: """
             (function(){
-                var results=[];
+                var r=[];
                 document.querySelectorAll('.proxy-list .proxy-item a[href^="tg://proxy"]').forEach(function(a){
                     var country='';
                     var span=a.closest('.proxy-item')?.querySelector('.proxy-country span:last-child');
                     if(span) country=span.textContent.trim();
-                    results.push(JSON.stringify({url:a.href,country:country}));
+                    r.push(JSON.stringify({url:a.href,country:country}));
                 });
-                return JSON.stringify(results);
+                return JSON.stringify(r);
             })()
             """
         ),
@@ -75,11 +75,11 @@ final class SourcesFetcher: NSObject, ObservableObject {
     func loadAll() {
         proxies = []
         loadState = .loading
-        pendingWebSources = webSources.count + 1 // +1 for yandex (URLSession)
+        pendingWebSources = webSources.count + 1
 
         fetchYandex()
-        for (i, src) in webSources.enumerated() {
-            loadWebSource(src, index: i)
+        for src in webSources {
+            loadWebSource(src)
         }
     }
 
@@ -109,7 +109,6 @@ final class SourcesFetcher: NSObject, ObservableObject {
                     }
                 }
             }
-            // Sort: done (asc) first, then failed
             self.proxies.sort {
                 switch ($0.pingState, $1.pingState) {
                 case (.done, .done): return ($0.pingMs ?? 9999) < ($1.pingMs ?? 9999)
@@ -122,7 +121,7 @@ final class SourcesFetcher: NSObject, ObservableObject {
         }
     }
 
-    // MARK: - Yandex (static HTML, URLSession)
+    // MARK: - Yandex (URLSession, static HTML)
 
     private func fetchYandex() {
         Task {
@@ -131,44 +130,33 @@ final class SourcesFetcher: NSObject, ObservableObject {
                 req.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)", forHTTPHeaderField: "User-Agent")
                 let (data, _) = try await URLSession.shared.data(for: req)
                 let html = String(data: data, encoding: .utf8) ?? ""
-                let items = parseYandex(html)
-                self.appendProxies(items)
-            } catch {
-                // ignore partial failures
-            }
-            self.sourceDidFinish()
+                appendProxies(parseYandex(html))
+            } catch {}
+            sourceDidFinish()
         }
     }
 
     private func parseYandex(_ html: String) -> [ProxyItem] {
         var result: [ProxyItem] = []
-        // Find all href="tg://proxy?..." inside .servers
-        let pattern = #"href="(tg://proxy\?[^"]+)""#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        guard let regex = try? NSRegularExpression(pattern: #"href="(tg://proxy\?[^"]+)""#) else { return [] }
         let ns = html as NSString
-        let matches = regex.matches(in: html, range: NSRange(location: 0, length: ns.length))
-        for m in matches {
-            let href = ns.substring(with: m.range(at: 1))
-                .replacingOccurrences(of: "&amp;", with: "&")
-            if let item = parseProxyURL(href, source: "Яндекс") {
-                result.append(item)
-            }
+        for m in regex.matches(in: html, range: NSRange(location: 0, length: ns.length)) {
+            let href = ns.substring(with: m.range(at: 1)).replacingOccurrences(of: "&amp;", with: "&")
+            if let item = parseProxyURL(href, source: "Яндекс") { result.append(item) }
         }
         return result
     }
 
-    // MARK: - Web sources
+    // MARK: - WKWebView sources
 
-    private func loadWebSource(_ src: WebSource, index: Int) {
+    private func loadWebSource(_ src: WebSource) {
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
         let wv = WKWebView(frame: .zero, configuration: config)
-        wv.navigationDelegate = nil
         webViews.append(wv)
 
-        // Store source info for use in navigation callback
-        let context = WebContext(source: src, webView: wv, owner: self)
-        objc_setAssociatedObject(wv, &WebContext.key, context, .OBJC_ASSOCIATION_RETAIN)
+        let ctx = WebContext(source: src, webView: wv, owner: self)
+        objc_setAssociatedObject(wv, &WebContext.key, ctx, .OBJC_ASSOCIATION_RETAIN)
 
         var req = URLRequest(url: URL(string: src.url)!)
         req.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15", forHTTPHeaderField: "User-Agent")
@@ -176,8 +164,7 @@ final class SourcesFetcher: NSObject, ObservableObject {
     }
 
     fileprivate func webSourceDidLoad(_ wv: WKWebView, source: WebSource) {
-        let wait = source.waitSeconds
-        DispatchQueue.main.asyncAfter(deadline: .now() + wait) { [weak self, weak wv] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + source.waitSeconds) { [weak self, weak wv] in
             guard let self, let wv else { return }
             Task { @MainActor in
                 do {
@@ -187,7 +174,6 @@ final class SourcesFetcher: NSObject, ObservableObject {
                        let arr = try? JSONSerialization.jsonObject(with: data) as? [String] {
                         var items: [ProxyItem] = []
                         for raw in arr {
-                            // widum returns JSON strings
                             if let inner = raw.data(using: .utf8),
                                let obj = try? JSONSerialization.jsonObject(with: inner) as? [String: String],
                                let url = obj["url"] {
@@ -196,7 +182,6 @@ final class SourcesFetcher: NSObject, ObservableObject {
                                     items.append(item)
                                 }
                             } else {
-                                // plain tg:// url
                                 let href = raw.replacingOccurrences(of: "&amp;", with: "&")
                                 if let item = self.parseProxyURL(href, source: source.name) {
                                     items.append(item)
@@ -211,20 +196,19 @@ final class SourcesFetcher: NSObject, ObservableObject {
         }
     }
 
-    // MARK: - Helpers
-
-    private func appendProxies(_ items: [ProxyItem]) {
-        let existing = Set(proxies.map { $0.tgURL })
-        let fresh = items.filter { !existing.contains($0.tgURL) }
-        proxies.append(contentsOf: fresh)
-    }
-
-    private func sourceDidFinish() {
+    fileprivate func sourceDidFinish() {
         pendingWebSources -= 1
         if pendingWebSources <= 0 {
             loadState = proxies.isEmpty ? .error("Ничего не загружено") : .done
             webViews.removeAll()
         }
+    }
+
+    // MARK: - Helpers
+
+    private func appendProxies(_ items: [ProxyItem]) {
+        let existing = Set(proxies.map { $0.tgURL })
+        proxies.append(contentsOf: items.filter { !existing.contains($0.tgURL) })
     }
 
     func parseProxyURL(_ href: String, source: String) -> ProxyItem? {
@@ -242,10 +226,10 @@ final class SourcesFetcher: NSObject, ObservableObject {
     }
 }
 
-// MARK: - Web context helper (navigation delegate per webview)
+// MARK: - WebContext (navigation delegate per WKWebView)
 
 private class WebContext: NSObject, WKNavigationDelegate {
-    static var key = "WebContextKey"
+    static var key = "wck"
     let source: SourcesFetcher.WebSource
     weak var webView: WKWebView?
     weak var owner: SourcesFetcher?
@@ -264,16 +248,10 @@ private class WebContext: NSObject, WKNavigationDelegate {
             owner.webSourceDidLoad(webView, source: self.source)
         }
     }
-
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
         Task { @MainActor [weak self] in self?.owner?.sourceDidFinish() }
     }
     func webView(_ webView: WKWebView, didFailProvisionalNavigation: WKNavigation!, withError error: Error) {
         Task { @MainActor [weak self] in self?.owner?.sourceDidFinish() }
     }
-}
-
-// Expose sourceDidFinish for internal use
-extension SourcesFetcher {
-    fileprivate func sourceDidFinishPublic() { sourceDidFinish() }
 }
