@@ -153,6 +153,8 @@ final class SourcesFetcher: NSObject, ObservableObject {
                     }
                 }
             }
+            // Remove unreachable, then sort by latency
+            self.proxies.removeAll { $0.pingState == .failed }
             self.proxies.sort {
                 switch ($0.pingState, $1.pingState) {
                 case (.done, .done): return ($0.pingMs ?? 9999) < ($1.pingMs ?? 9999)
