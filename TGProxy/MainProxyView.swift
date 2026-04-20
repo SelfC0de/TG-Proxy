@@ -71,14 +71,14 @@ struct MainProxyView: View {
             .offset(y: appeared ? 0 : -12)
             .animation(.spring(response: 0.5, dampingFraction: 0.8), value: appeared)
 
-            Text("TG Proxy")
+            Text("Telegram Proxy")
                 .font(.system(size: 22, weight: .semibold))
                 .foregroundColor(.white)
                 .opacity(appeared ? 1 : 0)
                 .offset(y: appeared ? 0 : 8)
                 .animation(.spring(response: 0.5, dampingFraction: 0.8).delay(0.05), value: appeared)
 
-            Text("SelfCode")
+            Link("SelfCode", destination: URL(string: "https://t.me/selfcode_dev")!)
                 .font(.system(size: 12, weight: .regular))
                 .foregroundColor(.white.opacity(0.3))
                 .opacity(appeared ? 1 : 0)

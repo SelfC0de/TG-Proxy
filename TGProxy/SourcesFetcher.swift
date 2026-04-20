@@ -469,8 +469,7 @@ final class SourcesFetcher: NSObject, ObservableObject {
         guard blocks.count > 1 else { return [] }
 
         let hrefRe    = try? NSRegularExpression(pattern: "href=\"(tg://proxy\\?[^\"]+)\"")
-        let countryRe = try? NSRegularExpression(pattern: "<span[^>]*>[^<]{1,30}</span>\\s*</div>\\s*</div>")
-        // Simpler country: data-country-code="XX"
+        // country from data-country-code="XX"
         let codeRe    = try? NSRegularExpression(pattern: "data-country-code=\"([a-z]{2})\"")
 
         for block in blocks.dropFirst() {
@@ -567,7 +566,7 @@ final class SourcesFetcher: NSObject, ObservableObject {
 
     private func parseRawTG(_ html: String, source: String) -> [ProxyItem] {
         var result: [ProxyItem] = []
-        guard let re = try? NSRegularExpression(pattern: "tg://proxy\\?[^\\s"'<>\\\\]+") else { return [] }
+        guard let re = try? NSRegularExpression(pattern: #"tg://proxy\?[^\s"'<>\\]+"#) else { return [] }
         let ns = html as NSString
         for m in re.matches(in: html, range: NSRange(location: 0, length: ns.length)) {
             let href = ns.substring(with: m.range)

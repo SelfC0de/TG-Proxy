@@ -60,10 +60,6 @@ final class PingService {
             }
             // HTTP status errors (400, 426, etc) — URLSession on iOS wraps these
             // as URLError with underlying NSURLError; check the raw code
-            let rawCode = (err as NSError).code
-            // NSURLErrorBadServerResponse = -1011, NSURLErrorCannotParseResponse = -1017
-            // HTTP 4xx/5xx come through as regular responses (not errors) on iOS
-            // BUT some proxies close TCP after sending status line → cannotDecodeRawData
             if err.code == .cannotDecodeRawData || err.code == .cannotDecodeContentData {
                 return max(1, ms)
             }
@@ -124,7 +120,7 @@ private final class PingDelegate: NSObject,
     // Accept any TLS cert (MTProto servers often use self-signed)
     func urlSession(_ session: URLSession,
                     didReceive challenge: URLAuthenticationChallenge,
-                    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+                    completionHandler: @escaping @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
         if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
            let trust = challenge.protectionSpace.serverTrust {
             completionHandler(.useCredential, URLCredential(trust: trust))
