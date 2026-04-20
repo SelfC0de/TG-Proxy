@@ -18,119 +18,113 @@ final class SourcesFetcher: NSObject, ObservableObject {
         let jsExtract: String
     }
 
-    // JS: always return JSON array of strings.
-    // For sources with country — return JSON array of "{\"url\":\"...\",\"country\":\"...\"}"
-    private let webSources: [WebSource] = [
-        WebSource(
-            url: "https://speedupnet.vip/proxy",
-            name: "SpeedUpNet",
-            waitSeconds: 4,
-            jsExtract: """
-            (function(){
-                var r=[];
-                var els=document.querySelectorAll('.share-url');
-                for(var i=0;i<els.length;i++){
-                    var t=els[i].textContent.trim();
-                    if(t.indexOf('tg://proxy')===0) r.push(t);
+    private var webSources: [WebSource] {
+        let speedupJS = """
+        (function(){
+            var r=[];
+            var els=document.querySelectorAll('.share-url');
+            for(var i=0;i<els.length;i++){
+                var t=els[i].textContent.trim();
+                if(t.indexOf('tg://proxy')===0) r.push(t);
+            }
+            return JSON.stringify(r);
+        })()
+        """
+
+        let mtproxyTG3JS = """
+        (function(){
+            var r=[];
+            var cards=document.querySelectorAll('.proxy-card');
+            for(var i=0;i<cards.length;i++){
+                var a=cards[i].querySelector('a[href]');
+                if(!a) continue;
+                var h=a.getAttribute('href');
+                if(!h||h.indexOf('tg://')<0) continue;
+                var country='';
+                var nm=cards[i].querySelector('.proxy-name');
+                if(nm) country=nm.textContent.trim();
+                r.push(JSON.stringify({url:h,country:country}));
+            }
+            return JSON.stringify(r);
+        })()
+        """
+
+        let widumJS = """
+        (function(){
+            var r=[];
+            var items=document.querySelectorAll('.proxy-list .proxy-item');
+            for(var i=0;i<items.length;i++){
+                var a=items[i].querySelector('a[href]');
+                if(!a) continue;
+                var h=a.getAttribute('href');
+                if(!h||h.indexOf('tg://')<0) continue;
+                var country='';
+                var spans=items[i].querySelectorAll('.proxy-country span');
+                if(spans.length>1) country=spans[spans.length-1].textContent.trim();
+                r.push(JSON.stringify({url:h,country:country}));
+            }
+            return JSON.stringify(r);
+        })()
+        """
+
+        // MTProbe: click "load more" until gone, then collect all.
+        // Regex uses string concat to avoid Swift escape issues: "/" + "([A-Z]{2})" + "\\.svg$"
+        let mtprobeJS = """
+        (function(){
+            var clickAndWait=function(resolve){
+                var btn=document.getElementById('load_more_btn');
+                if(!btn||btn.style.display==='none'||btn.disabled){
+                    setTimeout(resolve,1200);
+                    return;
                 }
-                return JSON.stringify(r);
-            })()
-            """
-        ),
-        WebSource(
-            url: "https://mtproxytg3.vercel.app/",
-            name: "MTProxyTG3",
-            waitSeconds: 6,
-            jsExtract: """
-            (function(){
-                var r=[];
-                var cards=document.querySelectorAll('.proxy-card');
-                for(var i=0;i<cards.length;i++){
-                    var a=cards[i].querySelector('a[href]');
-                    if(!a) continue;
-                    var h=a.getAttribute('href');
-                    if(!h||h.indexOf('tg://')<0) continue;
-                    var country='';
-                    var nm=cards[i].querySelector('.proxy-name');
-                    if(nm) country=nm.textContent.trim();
-                    r.push(JSON.stringify({url:h,country:country}));
-                }
-                return JSON.stringify(r);
-            })()
-            """
-        ),
-        WebSource(
-            url: "https://widum.ru/proxy/",
-            name: "Widum",
-            waitSeconds: 6,
-            jsExtract: """
-            (function(){
-                var r=[];
-                var items=document.querySelectorAll('.proxy-list .proxy-item');
-                for(var i=0;i<items.length;i++){
-                    var a=items[i].querySelector('a[href]');
-                    if(!a) continue;
-                    var h=a.getAttribute('href');
-                    if(!h||h.indexOf('tg://')<0) continue;
-                    var country='';
-                    var spans=items[i].querySelectorAll('.proxy-country span');
-                    if(spans.length>1) country=spans[spans.length-1].textContent.trim();
-                    r.push(JSON.stringify({url:h,country:country}));
-                }
-                return JSON.stringify(r);
-            })()
-            """
-        ),
-        WebSource(
-            url: "https://mtprobe.cyou/free-mtproto-proxies?max_ping=100&ee_mask=true",
-            name: "MTProbe",
-            waitSeconds: 3,
-            jsExtract: """
-            (function(){
-                var clickAndWait=function(resolve){
-                    var btn=document.getElementById('load_more_btn');
-                    if(!btn||btn.style.display==='none'||btn.disabled){resolve();return;}
-                    btn.click();
-                    setTimeout(function(){clickAndWait(resolve);},1800);
-                };
-                return new Promise(function(resolve){
-                    clickAndWait(function(){
-                        setTimeout(function(){
-                            var r=[];
-                            var cards=document.querySelectorAll('#servers_container .server-card');
-                            for(var i=0;i<cards.length;i++){
-                                var el=cards[i].querySelector('[data-link]');
-                                if(!el) continue;
-                                var h=el.getAttribute('data-link');
-                                if(!h||h.indexOf('tg://')<0) continue;
-                                var country='';
-                                var flag=cards[i].querySelector('img.flag');
-                                if(flag){
-                                    var src=flag.getAttribute('src')||'';
-                                    var m=src.match(/\/([A-Z]{2})\.svg$/);
-                                    if(m) country=m[1];
-                                }
-                                r.push(JSON.stringify({url:h,country:country}));
-                            }
-                            resolve(JSON.stringify(r));
-                        },1000);
-                    });
+                btn.click();
+                setTimeout(function(){clickAndWait(resolve);},2000);
+            };
+            return new Promise(function(resolve){
+                clickAndWait(function(){
+                    var r=[];
+                    var cards=document.querySelectorAll('#servers_container .server-card');
+                    for(var i=0;i<cards.length;i++){
+                        var el=cards[i].querySelector('[data-link]');
+                        if(!el) continue;
+                        var h=el.getAttribute('data-link');
+                        if(!h||h.indexOf('tg://')<0) continue;
+                        var country='';
+                        var flag=cards[i].querySelector('img.flag');
+                        if(flag){
+                            var src=flag.getAttribute('src')||'';
+                            var parts=src.split('/');
+                            var last=parts[parts.length-1];
+                            if(last.length>=6) country=last.substring(0,2);
+                        }
+                        r.push(JSON.stringify({url:h,country:country}));
+                    }
+                    resolve(JSON.stringify(r));
                 });
-            })()
-            """
-        ),
-    ]
+            });
+        })()
+        """
+
+        return [
+            WebSource(url: "https://speedupnet.vip/proxy",              name: "SpeedUpNet", waitSeconds: 4, jsExtract: speedupJS),
+            WebSource(url: "https://mtproxytg3.vercel.app/",             name: "MTProxyTG3", waitSeconds: 6, jsExtract: mtproxyTG3JS),
+            WebSource(url: "https://widum.ru/proxy/",                    name: "Widum",      waitSeconds: 6, jsExtract: widumJS),
+            WebSource(url: "https://mtprobe.cyou/free-mtproto-proxies?max_ping=100&ee_mask=true",
+                      name: "MTProbe", waitSeconds: 3, jsExtract: mtprobeJS),
+        ]
+    }
 
     // MARK: - Public
 
     func loadAll() {
         proxies = []
         loadState = .loading
-        pendingCount = webSources.count + 2  // yandex + kakfix (mtprobe via webSources)
+        let sources = webSources
+        pendingCount = sources.count + 2  // +yandex +kakfix
 
         fetchYandex()
         fetchKakfix()
-        for src in webSources { loadWebSource(src) }
+        for src in sources { loadWebSource(src) }
     }
 
     func pingAll() {
@@ -181,7 +175,8 @@ final class SourcesFetcher: NSObject, ObservableObject {
                 req.timeoutInterval = 15
                 let (data, _) = try await URLSession.shared.data(for: req)
                 let html = String(data: data, encoding: .utf8) ?? ""
-                appendProxies(parseByHref(html, source: "Яндекс"))
+                let items = parseByHref(html, source: "Яндекс")
+                streamAppend(items)
             } catch {}
             finish()
         }
@@ -191,7 +186,6 @@ final class SourcesFetcher: NSObject, ObservableObject {
 
     private func fetchKakfix() {
         Task {
-            var all: [ProxyItem] = []
             await withTaskGroup(of: [ProxyItem].self) { group in
                 for page in 1...10 {
                     group.addTask { [weak self] in
@@ -199,9 +193,11 @@ final class SourcesFetcher: NSObject, ObservableObject {
                         return await self.fetchKakfixPage(page)
                     }
                 }
-                for await items in group { all.append(contentsOf: items) }
+                // Stream results page by page as they arrive
+                for await items in group {
+                    if !items.isEmpty { streamAppend(items) }
+                }
             }
-            appendProxies(all)
             finish()
         }
     }
@@ -213,7 +209,8 @@ final class SourcesFetcher: NSObject, ObservableObject {
         guard let url = URL(string: urlStr) else { return [] }
         var req = URLRequest(url: url)
         req.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15", forHTTPHeaderField: "User-Agent")
-        req.setValue("text/html,application/xhtml+xml", forHTTPHeaderField: "Accept")
+        req.setValue("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", forHTTPHeaderField: "Accept")
+        req.setValue("https://kakfix.online", forHTTPHeaderField: "Referer")
         req.timeoutInterval = 15
         do {
             let (data, _) = try await URLSession.shared.data(for: req)
@@ -222,20 +219,16 @@ final class SourcesFetcher: NSObject, ObservableObject {
         } catch { return [] }
     }
 
-    // Parse kakfix HTML: find .proxy-card blocks, extract href + country text
     private func parseKakfix(_ html: String) -> [ProxyItem] {
         var result: [ProxyItem] = []
-        // Split into cards by opening class
         let blocks = html.components(separatedBy: "proxy-card__actions")
         guard blocks.count > 1 else { return [] }
 
-        // Pre-collect countries: text after flag emoji in proxy-card__country span
-        // Pattern: <span class="proxy-card__country">🇺🇸</span> United States
-        let countryRe = try? NSRegularExpression(
-            pattern: #"proxy-card__country[^>]*>(?:[^<]*)</span>\s*([A-Za-zА-Яа-я ]+)"#
-        )
+        // Countries: text after emoji span closing tag
         var countries: [String] = []
-        if let re = countryRe {
+        if let re = try? NSRegularExpression(
+            pattern: "proxy-card__country[^>]*>[^<]*</span>\\s*([A-Za-z\\u00C0-\\u024F ]+)"
+        ) {
             let ns = html as NSString
             for m in re.matches(in: html, range: NSRange(location: 0, length: ns.length)) {
                 let c = ns.substring(with: m.range(at: 1))
@@ -244,11 +237,7 @@ final class SourcesFetcher: NSObject, ObservableObject {
             }
         }
 
-        // href pattern — handles both &amp; and & encoded
-        let hrefRe = try? NSRegularExpression(
-            pattern: #"href="(tg://proxy\?[^"]+)""#
-        )
-
+        let hrefRe = try? NSRegularExpression(pattern: "href=\"(tg://proxy\\?[^\"]+)\"")
         var idx = 0
         for block in blocks.dropFirst() {
             let ns = block as NSString
@@ -276,8 +265,11 @@ final class SourcesFetcher: NSObject, ObservableObject {
         let ctx = WebContext(source: src, webView: wv, owner: self)
         objc_setAssociatedObject(wv, &WebContext.key, ctx, .OBJC_ASSOCIATION_RETAIN)
         var req = URLRequest(url: URL(string: src.url)!)
-        req.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1", forHTTPHeaderField: "User-Agent")
-        req.timeoutInterval = 20
+        req.setValue(
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+            forHTTPHeaderField: "User-Agent"
+        )
+        req.timeoutInterval = 30
         wv.load(req)
     }
 
@@ -292,7 +284,6 @@ final class SourcesFetcher: NSObject, ObservableObject {
                        let arr = try? JSONSerialization.jsonObject(with: data) as? [String] {
                         var items: [ProxyItem] = []
                         for raw in arr {
-                            // Try JSON object {url, country}
                             if let inner = raw.data(using: .utf8),
                                let obj = try? JSONSerialization.jsonObject(with: inner) as? [String: String],
                                let url = obj["url"] {
@@ -302,14 +293,13 @@ final class SourcesFetcher: NSObject, ObservableObject {
                                     items.append(item)
                                 }
                             } else {
-                                // Plain tg:// string
                                 let href = raw.replacingOccurrences(of: "&amp;", with: "&")
                                 if let item = self.parseProxyURL(href, source: source.name) {
                                     items.append(item)
                                 }
                             }
                         }
-                        self.appendProxies(items)
+                        if !items.isEmpty { self.streamAppend(items) }
                     }
                 } catch {}
                 self.finish()
@@ -317,27 +307,30 @@ final class SourcesFetcher: NSObject, ObservableObject {
         }
     }
 
-    // MARK: - Helpers
+    // MARK: - Streaming append (shows results progressively)
+
+    private func streamAppend(_ items: [ProxyItem]) {
+        let existingKeys = Set(proxies.map { "\($0.server):\($0.port)" })
+        let fresh = items.filter { !existingKeys.contains("\($0.server):\($0.port)") }
+        guard !fresh.isEmpty else { return }
+        proxies.append(contentsOf: fresh)
+        // Show partial results immediately
+        if case .loading = loadState { loadState = .done }
+    }
 
     fileprivate func finish() {
         pendingCount -= 1
         if pendingCount <= 0 {
-            loadState = proxies.isEmpty ? .error("Серверы не найдены") : .done
+            if proxies.isEmpty { loadState = .error("Серверы не найдены") }
             webViews.removeAll()
         }
     }
 
-    private func appendProxies(_ items: [ProxyItem]) {
-        // Deduplicate by server+port (normalised), not by full tgURL string
-        let existingKeys = Set(proxies.map { "\($0.server):\($0.port)" })
-        let fresh = items.filter { !existingKeys.contains("\($0.server):\($0.port)") }
-        proxies.append(contentsOf: fresh)
-    }
+    // MARK: - Helpers
 
-    // Generic href parser — works for Yandex and any static HTML
     private func parseByHref(_ html: String, source: String) -> [ProxyItem] {
         var result: [ProxyItem] = []
-        guard let re = try? NSRegularExpression(pattern: #"href="(tg://proxy\?[^"]+)""#) else { return [] }
+        guard let re = try? NSRegularExpression(pattern: "href=\"(tg://proxy\\?[^\"]+)\"") else { return [] }
         let ns = html as NSString
         for m in re.matches(in: html, range: NSRange(location: 0, length: ns.length)) {
             let href = ns.substring(with: m.range(at: 1))
