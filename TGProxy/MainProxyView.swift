@@ -227,22 +227,9 @@ struct MainProxyView: View {
             .offset(y: appeared ? 0 : 12)
             .animation(.spring(response: 0.5, dampingFraction: 0.8).delay(0.2), value: appeared)
 
-            Button {
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
-                    fetcher.fetch()
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 13, weight: .medium))
-                    Text("Обновить")
-                        .font(.system(size: 14, weight: .medium))
-                }
-                .foregroundColor(.white.opacity(0.4))
-                .frame(maxWidth: .infinity)
-                .frame(height: 40)
+            RefreshButton(label: "Обновить") {
+                fetcher.fetch()
             }
-            .buttonStyle(.plain)
             .opacity(appeared ? 1 : 0)
             .animation(.easeOut(duration: 0.4).delay(0.25), value: appeared)
         }
@@ -282,6 +269,44 @@ struct InfoRow: View {
                 .font(.system(size: 13, weight: .medium))
                 .foregroundColor(.white.opacity(0.85))
         }
+    }
+}
+
+// MARK: - Refresh button (single 360° spin on tap, no repeat)
+
+struct RefreshButton: View {
+    var label: String = ""
+    let action: () -> Void
+
+    @State private var angle: Double = 0
+    @State private var busy = false
+
+    var body: some View {
+        Button {
+            guard !busy else { return }
+            busy = true
+            withAnimation(.timingCurve(0.4, 0, 0.2, 1, duration: 0.5)) {
+                angle += 360
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                busy = false
+            }
+            action()
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 13, weight: .medium))
+                    .rotationEffect(.degrees(angle))
+                if !label.isEmpty {
+                    Text(label)
+                        .font(.system(size: 14, weight: .medium))
+                }
+            }
+            .foregroundColor(.white.opacity(0.38))
+            .frame(maxWidth: label.isEmpty ? nil : .infinity)
+            .frame(height: label.isEmpty ? 36 : 40)
+        }
+        .buttonStyle(.plain)
     }
 }
 

@@ -68,20 +68,11 @@ struct ProxiesView: View {
                 .animation(.spring(response: 0.45, dampingFraction: 0.8).delay(0.1), value: appeared)
 
                 // Refresh button
-                Button {
+                RefreshButton {
                     fetcher.loadAll()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(.white.opacity(0.55))
-                        .rotationEffect(.degrees(isLoading ? 360 : 0))
-                        .animation(
-                            isLoading ? .linear(duration: 0.9).repeatForever(autoreverses: false) : .default,
-                            value: isLoading
-                        )
-                        .frame(width: 36, height: 36)
-                        .background(Circle().fill(AppTheme.surface))
                 }
+                .frame(width: 36, height: 36)
+                .background(Circle().fill(AppTheme.surface))
                 .opacity(appeared ? 1 : 0)
                 .offset(y: appeared ? 0 : -8)
                 .animation(.spring(response: 0.45, dampingFraction: 0.8).delay(0.15), value: appeared)
@@ -179,11 +170,6 @@ struct ProxiesView: View {
 
     private var countLabel: String {
         fetcher.proxies.isEmpty ? "Загрузка…" : "\(fetcher.proxies.count) серверов"
-    }
-
-    private var isLoading: Bool {
-        if case .loading = fetcher.loadState { return true }
-        return false
     }
 
     private var pingButtonColor: Color {
@@ -299,3 +285,5 @@ struct ProxyRow: View {
         .buttonStyle(.plain)
     }
 }
+
+
