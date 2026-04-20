@@ -28,11 +28,15 @@ final class ProxyFetcher: NSObject, ObservableObject {
     private let maxRetries = 5
     private let retryDelay: Double = 4.0
     private(set) var retryCount = 0
+    @Published var autoPingMs: Int? = nil
+    @Published var autoPingState: ProxyItem.PingState = .idle
 
     // MARK: - Public
 
     func fetch() {
         retryCount = 0
+        autoPingMs = nil
+        autoPingState = .idle
         startLoad()
     }
 
@@ -113,6 +117,9 @@ final class ProxyFetcher: NSObject, ObservableObject {
                     return
                 }
                 state = .ready(parsed)
+                autoPingMs = nil
+                autoPingState = .idle
+                await autoPingAfterReady(parsed)
             } else {
                 // No proxy available — retry if attempts remain
                 if retryCount < maxRetries {
@@ -123,6 +130,24 @@ final class ProxyFetcher: NSObject, ObservableObject {
             }
         } catch {
             state = .error("Ошибка загрузки: \(error.localizedDescription)")
+        }
+    }
+
+    private func autoPingAfterReady(_ data: ProxyData) async {
+        autoPingState = .pinging
+        let port = UInt16(data.port) ?? 443
+        let ms = await PingService.shared.ping(server: data.server, port: port)
+        if let ms {
+            autoPingMs = ms
+            autoPingState = .done
+        } else {
+            autoPingState = .failed
+            // Server unreachable — retry fetch if attempts remain
+            if retryCount < maxRetries {
+                retry()
+            } else {
+                state = .error("Серверов нет. Попробуйте позже.")
+            }
         }
     }
 

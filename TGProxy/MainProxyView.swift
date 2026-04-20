@@ -3,8 +3,6 @@ import SwiftUI
 struct MainProxyView: View {
     @ObservedObject var fetcher: ProxyFetcher
     @State private var appeared = false
-    @State private var pingState: ProxyItem.PingState = .idle
-    @State private var pingMs: Int? = nil
     @State private var showQR = false
 
     var body: some View {
@@ -175,7 +173,7 @@ struct MainProxyView: View {
             InfoRow(label: "Порт", value: data.port)
 
             // Ping row
-            if pingState != .idle {
+            if fetcher.autoPingState != .idle {
                 Spacer().frame(height: 10)
                 HStack {
                     Text("Ping")
@@ -196,7 +194,7 @@ struct MainProxyView: View {
 
     @ViewBuilder
     private var pingLabel: some View {
-        switch pingState {
+        switch fetcher.autoPingState {
         case .idle:
             EmptyView()
         case .pinging:
@@ -207,7 +205,7 @@ struct MainProxyView: View {
                     .foregroundColor(.white.opacity(0.4))
             }
         case .done:
-            let ms = pingMs ?? 0
+            let ms = fetcher.autoPingMs ?? 0
             let color = ms < 150 ? AppTheme.green : ms < 400 ? AppTheme.amber : AppTheme.red
             Text("\(ms) ms")
                 .font(.system(size: 12, weight: .semibold))
@@ -282,21 +280,21 @@ struct MainProxyView: View {
                 // Ping button
                 Button {
                     guard case .ready(let data) = fetcher.state else { return }
-                    pingState = .pinging
-                    pingMs = nil
+                    fetcher.autoPingState = .pinging
+                    fetcher.autoPingMs = nil
                     Task {
                         let port = UInt16(data.port) ?? 443
                         let ms = await PingService.shared.ping(server: data.server, port: port)
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                            pingMs = ms
-                            pingState = ms != nil ? .done : .failed
+                            fetcher.autoPingMs = ms
+                            fetcher.autoPingState = ms != nil ? .done : .failed
                         }
                     }
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "antenna.radiowaves.left.and.right")
                             .font(.system(size: 13, weight: .medium))
-                            .symbolEffect(.variableColor.iterative.reversing, isActive: pingState == .pinging)
+                            .symbolEffect(.variableColor.iterative.reversing, isActive: fetcher.autoPingState == .pinging)
                         Text("Ping")
                             .font(.system(size: 14, weight: .medium))
                     }
@@ -312,7 +310,7 @@ struct MainProxyView: View {
                             )
                     )
                 }
-                .disabled(!isReady || pingState == .pinging)
+                .disabled(!isReady || fetcher.autoPingState == .pinging)
 
                 // QR button
                 Button {
@@ -345,8 +343,6 @@ struct MainProxyView: View {
 
             RefreshButton(label: "Обновить") {
                 fetcher.fetch()
-                pingState = .idle
-                pingMs = nil
             }
             .opacity(appeared ? 1 : 0)
             .animation(.easeOut(duration: 0.4).delay(0.27), value: appeared)
