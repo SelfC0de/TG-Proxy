@@ -22,7 +22,7 @@ final class ProxyFetcher: NSObject, ObservableObject {
     private var webView: WKWebView?
     private var timer: Timer?
     private var elapsed: Double = 0
-    private let totalWait: Double = 5.5
+    private let totalWait: Double = 10.0
     private let pageURL = URL(string: "https://mtproto.ru/personal.php")!
 
     func fetch() {
