@@ -89,6 +89,52 @@ final class SourcesFetcher: NSObject, ObservableObject {
         })()
         """
 
+        let tgvpnJS = """
+
+        (function(){
+            return new Promise(function(resolve){
+                var attempts = 0;
+                var maxAttempts = 30;
+                function tryExtract(){
+                    attempts++;
+                    var proxies = window.allProxies || [];
+                    if(proxies.length > 0 || attempts >= maxAttempts){
+                        var r = [];
+                        // From allProxies array (direct data)
+                        for(var i=0;i<proxies.length;i++){
+                            var p = proxies[i];
+                            if(!p.url) continue;
+                            var h = p.url;
+                            if(h.indexOf('tg://proxy')<0) continue;
+                            var country = (p.country_name||p.city||'').trim();
+                            r.push(JSON.stringify({url:h,country:country}));
+                        }
+                        // DOM fallback if allProxies empty
+                        if(r.length === 0){
+                            var links = document.querySelectorAll('.px-go[href]');
+                            for(var j=0;j<links.length;j++){
+                                var h2 = links[j].getAttribute('href');
+                                if(!h2||h2.indexOf('tg://proxy')<0) continue;
+                                var card = links[j].closest('.px');
+                                var country2 = '';
+                                if(card){
+                                    var sub = card.querySelector('.px-sub');
+                                    if(sub) country2 = sub.textContent.trim();
+                                }
+                                r.push(JSON.stringify({url:h2,country:country2}));
+                            }
+                        }
+                        resolve(JSON.stringify(r));
+                        return;
+                    }
+                    setTimeout(tryExtract, 300);
+                }
+                // Wait initial 2s for page JS to run
+                setTimeout(tryExtract, 2000);
+            });
+        })()
+        """
+
         return [
             WebSource(url: "https://speedupnet.vip/proxy",
                       name: "SpeedUpNet", waitSeconds: 4, jsExtract: speedupJS),
@@ -96,6 +142,8 @@ final class SourcesFetcher: NSObject, ObservableObject {
                       name: "MTProxyTG3", waitSeconds: 6, jsExtract: mtproxyTG3JS),
             WebSource(url: "https://mtprobe.cyou/free-mtproto-proxies?max_ping=100&ee_mask=true",
                       name: "MTProbe", waitSeconds: 3, jsExtract: mtprobeJS),
+        WebSource(url: "https://telegramvpn.org/ru/",
+                  name: "TelegramVPN", waitSeconds: 2, jsExtract: tgvpnJS),
         ]
     }
 
