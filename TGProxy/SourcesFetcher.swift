@@ -184,7 +184,7 @@ final class SourcesFetcher: NSObject, ObservableObject {
         loadState = .loading
         let sources = webSources
         // URLSession: yandex + kakfix + widum = 3; WKWebView sources = sources.count
-        pendingCount = sources.count + 6  // +yandex +kakfix +widum +soliSpirit +cloxybot +wwproxy
+        pendingCount = sources.count + 7  // +yandex +kakfix +widum +soliSpirit +cloxybot +wwproxy +bbqpirat
 
         fetchYandex()
         fetchKakfix()
@@ -192,6 +192,7 @@ final class SourcesFetcher: NSObject, ObservableObject {
         fetchSoliSpirit()
         fetchCloxybot()
         fetchWWProxy()
+        fetchBBQPirat()
         for src in sources { loadWebSource(src) }
     }
 
@@ -250,6 +251,23 @@ final class SourcesFetcher: NSObject, ObservableObject {
             }
             self.availableCount = self.proxies.filter { $0.pingState == .done }.count
             self.isPinging = false
+        }
+    }
+
+    // MARK: - BBQPirat (static HTML, URLSession)
+
+    private func fetchBBQPirat() {
+        Task {
+            do {
+                var req = URLRequest(url: URL(string: "https://bbqpirat.com/proxy-telegram/")!)
+                req.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+                req.setValue("text/html,application/xhtml+xml", forHTTPHeaderField: "Accept")
+                req.timeoutInterval = 15
+                let (data, _) = try await URLSession.shared.data(for: req)
+                let html = String(data: data, encoding: .utf8) ?? ""
+                streamAppend(parseByHref(html, source: "BBQPirat"))
+            } catch {}
+            finish()
         }
     }
 
