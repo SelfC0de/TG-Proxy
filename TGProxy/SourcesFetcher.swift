@@ -75,9 +75,10 @@ final class SourcesFetcher: NSObject, ObservableObject {
     func loadAll() {
         proxies = []
         loadState = .loading
-        pendingWebSources = webSources.count + 1
+        pendingWebSources = webSources.count + 2  // +1 yandex +1 kakfix
 
         fetchYandex()
+        fetchKakfix()
         for src in webSources {
             loadWebSource(src)
         }
@@ -143,6 +144,83 @@ final class SourcesFetcher: NSObject, ObservableObject {
         for m in regex.matches(in: html, range: NSRange(location: 0, length: ns.length)) {
             let href = ns.substring(with: m.range(at: 1)).replacingOccurrences(of: "&amp;", with: "&")
             if let item = parseProxyURL(href, source: "Яндекс") { result.append(item) }
+        }
+        return result
+    }
+
+    // MARK: - KakFix (URLSession, 10 pages, static HTML)
+
+    private func fetchKakfix() {
+        Task {
+            var all: [ProxyItem] = []
+            await withTaskGroup(of: [ProxyItem].self) { group in
+                for page in 1...10 {
+                    group.addTask { [weak self] in
+                        guard let self else { return [] }
+                        return await self.fetchKakfixPage(page)
+                    }
+                }
+                for await items in group {
+                    all.append(contentsOf: items)
+                }
+            }
+            appendProxies(all)
+            sourceDidFinish()
+        }
+    }
+
+    private func fetchKakfixPage(_ page: Int) async -> [ProxyItem] {
+        let urlStr = page == 1
+            ? "https://kakfix.online/ru/proxies"
+            : "https://kakfix.online/ru/proxies?page=\(page)"
+        guard let url = URL(string: urlStr) else { return [] }
+        var req = URLRequest(url: url)
+        req.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)", forHTTPHeaderField: "User-Agent")
+        req.timeoutInterval = 10
+        do {
+            let (data, _) = try await URLSession.shared.data(for: req)
+            let html = String(data: data, encoding: .utf8) ?? ""
+            return parseKakfix(html)
+        } catch { return [] }
+    }
+
+    private func parseKakfix(_ html: String) -> [ProxyItem] {
+        var result: [ProxyItem] = []
+        // Extract tg://proxy href from .btn--primary links
+        let hrefPattern = #"href="(tg://proxy\?[^"]+)""#
+        // Extract country name near each card
+        let countryPattern = #"proxy-card__country[^>]*>[^<]*</span>\s*([A-Za-zА-Яа-я ]+)"#
+
+        guard let hrefRe    = try? NSRegularExpression(pattern: hrefPattern),
+              let countryRe = try? NSRegularExpression(pattern: countryPattern) else { return [] }
+
+        // Split by proxy-card to pair href + country
+        let cardPattern = "proxy-card__actions"
+        let cardParts = html.components(separatedBy: cardPattern)
+
+        // Collect countries in order
+        let ns = html as NSString
+        var countries: [String] = []
+        for m in countryRe.matches(in: html, range: NSRange(location: 0, length: ns.length)) {
+            let raw = ns.substring(with: m.range(at: 1))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            countries.append(raw)
+        }
+
+        var cardIdx = 0
+        // cardParts[0] is before first card, skip it
+        for part in cardParts.dropFirst() {
+            let partNS = part as NSString
+            let range = NSRange(location: 0, length: partNS.length)
+            if let m = hrefRe.firstMatch(in: part, range: range) {
+                let href = partNS.substring(with: m.range(at: 1))
+                    .replacingOccurrences(of: "&amp;", with: "&")
+                if var item = parseProxyURL(href, source: "KakFix") {
+                    item.countryName = cardIdx < countries.count ? countries[cardIdx] : ""
+                    result.append(item)
+                }
+            }
+            cardIdx += 1
         }
         return result
     }
