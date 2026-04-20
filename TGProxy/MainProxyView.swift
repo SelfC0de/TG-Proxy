@@ -4,6 +4,8 @@ struct MainProxyView: View {
     @ObservedObject var fetcher: ProxyFetcher
     @State private var appeared = false
     @State private var showQR = false
+    @State private var toastMessage: String? = nil
+    @State private var toastTask: Task<Void, Never>? = nil
 
     var body: some View {
         ZStack {
@@ -31,6 +33,23 @@ struct MainProxyView: View {
             }
             fetcher.fetch()
         }
+        .overlay(alignment: .bottom) {
+            if let msg = toastMessage {
+                Text(msg)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 9)
+                    .background(Capsule().fill(Color(red: 0.13, green: 0.85, blue: 0.47).opacity(0.92)))
+                    .padding(.bottom, 110)
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .offset(y: 12)),
+                        removal:   .opacity.combined(with: .offset(y: 12))
+                    ))
+                    .allowsHitTesting(false)
+            }
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: toastMessage)
         .sheet(isPresented: $showQR) {
             if case .ready(let data) = fetcher.state {
                 QRSheet(item: ProxyItem(
@@ -335,6 +354,27 @@ struct MainProxyView: View {
                     )
                 }
                 .disabled(!isReady)
+
+                // Copy button
+                Button {
+                    guard case .ready(let data) = fetcher.state else { return }
+                    UIPasteboard.general.string = data.tgURL
+                    showMainToast("Скопировано")
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(isReady ? .white.opacity(0.65) : .white.opacity(0.2))
+                        .frame(width: 44, height: 44)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(AppTheme.card)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+                                )
+                        )
+                }
+                .disabled(!isReady)
             }
             .buttonStyle(.plain)
             .opacity(appeared ? 1 : 0)
@@ -350,6 +390,18 @@ struct MainProxyView: View {
     }
 
     // MARK: - Helpers
+
+    private func showMainToast(_ msg: String) {
+        toastTask?.cancel()
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { toastMessage = msg }
+        toastTask = Task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                withAnimation(.easeOut(duration: 0.25)) { toastMessage = nil }
+            }
+        }
+    }
 
     private var isReady: Bool {
         if case .ready = fetcher.state { return true }

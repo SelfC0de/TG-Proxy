@@ -8,6 +8,8 @@ final class SourcesFetcher: NSObject, ObservableObject {
     @Published var loadState: SourceLoadState = .idle
     @Published var isPinging = false
     @Published var availableCount: Int = 0
+    @Published var pingProgress: Int = 0
+    @Published var pingTotal: Int = 0
 
     private var webViews: [WKWebView] = []
     private var pendingCount = 0
@@ -218,6 +220,8 @@ final class SourcesFetcher: NSObject, ObservableObject {
     func pingAll() {
         guard !proxies.isEmpty else { return }
         isPinging = true
+        pingProgress = 0
+        pingTotal = proxies.count
         let items = proxies
         Task {
             await withTaskGroup(of: (UUID, Int?).self) { group in
@@ -239,6 +243,7 @@ final class SourcesFetcher: NSObject, ObservableObject {
                         self.proxies[idx].pingMs = ms
                         self.proxies[idx].pingState = ms != nil ? .done : .failed
                     }
+                    self.pingProgress += 1
                 }
             }
             // Remove unreachable, then sort by latency
@@ -252,6 +257,8 @@ final class SourcesFetcher: NSObject, ObservableObject {
                 }
             }
             self.availableCount = self.proxies.filter { $0.pingState == .done }.count
+            self.pingProgress = 0
+            self.pingTotal = 0
             self.isPinging = false
         }
     }
