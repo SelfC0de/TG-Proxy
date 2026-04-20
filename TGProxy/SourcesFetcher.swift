@@ -89,6 +89,19 @@ final class SourcesFetcher: NSObject, ObservableObject {
         })()
         """
 
+        let nevpnJS = """
+
+        (function(){
+            var r=[];
+            var links=document.querySelectorAll('a[href]');
+            for(var i=0;i<links.length;i++){
+                var h=links[i].getAttribute('href');
+                if(h&&h.indexOf('tg://proxy')===0) r.push(h);
+            }
+            return JSON.stringify(r);
+        })()
+        """
+
         let silajobJS = """
 
         (function(){
@@ -159,6 +172,8 @@ final class SourcesFetcher: NSObject, ObservableObject {
                   name: "TelegramVPN", waitSeconds: 2, jsExtract: tgvpnJS),
         WebSource(url: "https://sila-net.org/telegram-uskoritel-besplatno.html",
                   name: "SilaNet", waitSeconds: 3, jsExtract: silajobJS),
+        WebSource(url: "https://nevpn.me/tg/",
+                  name: "NevPN", waitSeconds: 3, jsExtract: nevpnJS),
         ]
     }
 
@@ -169,13 +184,14 @@ final class SourcesFetcher: NSObject, ObservableObject {
         loadState = .loading
         let sources = webSources
         // URLSession: yandex + kakfix + widum = 3; WKWebView sources = sources.count
-        pendingCount = sources.count + 5  // +yandex +kakfix +widum +soliSpirit +cloxybot
+        pendingCount = sources.count + 6  // +yandex +kakfix +widum +soliSpirit +cloxybot +wwproxy
 
         fetchYandex()
         fetchKakfix()
         fetchWidum()
         fetchSoliSpirit()
         fetchCloxybot()
+        fetchWWProxy()
         for src in sources { loadWebSource(src) }
     }
 
@@ -234,6 +250,40 @@ final class SourcesFetcher: NSObject, ObservableObject {
             }
             self.availableCount = self.proxies.filter { $0.pingState == .done }.count
             self.isPinging = false
+        }
+    }
+
+    // MARK: - WWProxy (JSON API, URLSession)
+
+    private func fetchWWProxy() {
+        Task {
+            do {
+                var req = URLRequest(url: URL(string: "https://wwproxy.ru/api/proxies")!)
+                req.setValue("curl/7.88.1", forHTTPHeaderField: "User-Agent")
+                req.setValue("application/json", forHTTPHeaderField: "Accept")
+                req.setValue("https://wwproxy.ru/servers", forHTTPHeaderField: "Referer")
+                req.timeoutInterval = 15
+                let (data, _) = try await URLSession.shared.data(for: req)
+                guard let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                    finish(); return
+                }
+                let items: [ProxyItem] = arr.compactMap { p in
+                    guard let ip     = p["ip"]     as? String,
+                          let secret = p["secret"] as? String,
+                          let portAny = p["port"],
+                          !ip.isEmpty, !secret.isEmpty else { return nil }
+                    let port: String
+                    if let pi = portAny as? Int        { port = String(pi) }
+                    else if let ps = portAny as? String { port = ps }
+                    else { return nil }
+                    let tgURL = "tg://proxy?server=\(ip)&port=\(port)&secret=\(secret)"
+                    var item = ProxyItem(server: ip, port: port, tgURL: tgURL, sourceName: "WWProxy")
+                    item.countryName = (p["country"] as? String) ?? ""
+                    return item
+                }
+                streamAppend(items)
+            } catch {}
+            finish()
         }
     }
 
