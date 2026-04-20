@@ -106,12 +106,13 @@ final class SourcesFetcher: NSObject, ObservableObject {
         loadState = .loading
         let sources = webSources
         // URLSession: yandex + kakfix + widum = 3; WKWebView sources = sources.count
-        pendingCount = sources.count + 4  // +yandex +kakfix +widum +soliSpirit
+        pendingCount = sources.count + 5  // +yandex +kakfix +widum +soliSpirit +cloxybot
 
         fetchYandex()
         fetchKakfix()
         fetchWidum()
         fetchSoliSpirit()
+        fetchCloxybot()
         for src in sources { loadWebSource(src) }
     }
 
@@ -170,6 +171,22 @@ final class SourcesFetcher: NSObject, ObservableObject {
             }
             self.availableCount = self.proxies.filter { $0.pingState == .done }.count
             self.isPinging = false
+        }
+    }
+
+    // MARK: - Cloxybot (static HTML, URLSession)
+
+    private func fetchCloxybot() {
+        Task {
+            do {
+                var req = URLRequest(url: URL(string: "https://cloxybot.ru/proxy")!)
+                req.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)", forHTTPHeaderField: "User-Agent")
+                req.timeoutInterval = 15
+                let (data, _) = try await URLSession.shared.data(for: req)
+                let html = String(data: data, encoding: .utf8) ?? ""
+                streamAppend(parseByHref(html, source: "Cloxybot"))
+            } catch {}
+            finish()
         }
     }
 
