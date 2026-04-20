@@ -113,6 +113,19 @@ final class SourcesFetcher: NSObject, ObservableObject {
         for src in sources { loadWebSource(src) }
     }
 
+    func pingSingle(_ item: ProxyItem) {
+        guard let idx = proxies.firstIndex(where: { $0.id == item.id }) else { return }
+        proxies[idx].pingState = .pinging
+        Task {
+            let port = UInt16(item.port) ?? 443
+            let ms = await PingService.shared.ping(server: item.server, port: port)
+            if let i = self.proxies.firstIndex(where: { $0.id == item.id }) {
+                self.proxies[i].pingMs = ms
+                self.proxies[i].pingState = ms != nil ? .done : .failed
+            }
+        }
+    }
+
     func pingAll() {
         guard !proxies.isEmpty else { return }
         isPinging = true
