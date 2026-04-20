@@ -103,13 +103,23 @@ struct ProxiesView: View {
                     .offset(x: appeared ? 0 : -10)
                     .animation(.spring(response: 0.45, dampingFraction: 0.8), value: appeared)
 
-                Text(countLabel)
-                    .font(.system(size: 12))
-                    .foregroundColor(.white.opacity(0.3))
-                    .contentTransition(.numericText())
-                    .animation(.easeInOut(duration: 0.3), value: fetcher.proxies.count)
-                    .opacity(appeared ? 1 : 0)
-                    .animation(.easeOut(duration: 0.4).delay(0.05), value: appeared)
+                HStack(spacing: 4) {
+                    Text(totalLabel)
+                        .font(.system(size: 12))
+                        .foregroundColor(.white.opacity(0.3))
+                    if fetcher.availableCount > 0 {
+                        Text("|")
+                            .font(.system(size: 11))
+                            .foregroundColor(.white.opacity(0.15))
+                        Text("Доступно \(fetcher.availableCount)")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(AppTheme.green)
+                    }
+                }
+                .contentTransition(.numericText())
+                .animation(.easeInOut(duration: 0.3), value: fetcher.proxies.count)
+                .opacity(appeared ? 1 : 0)
+                .animation(.easeOut(duration: 0.4).delay(0.05), value: appeared)
             }
 
             Spacer()
@@ -434,12 +444,8 @@ struct ProxiesView: View {
         return Array(Set(all)).sorted()
     }
 
-    private var countLabel: String {
-        if fetcher.proxies.isEmpty { return "Загрузка…" }
-        let total = fetcher.proxies.count
-        let avail = fetcher.availableCount
-        if avail > 0 { return "\(total) серверов  |  Доступно \(avail)" }
-        return "\(total) серверов"
+    private var totalLabel: String {
+        fetcher.proxies.isEmpty ? "Загрузка…" : "\(fetcher.proxies.count) серверов"
     }
 
     private var pingButtonColor: Color {
