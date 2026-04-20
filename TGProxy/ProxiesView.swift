@@ -5,17 +5,8 @@ import CoreImage.CIFilterBuiltins
 // MARK: - Sort
 
 enum ProxySort: String, CaseIterable {
-    case none    = "По умолчанию"
-    case ping    = "Пинг"
-    case country = "Страна"
-
-    var icon: String {
-        switch self {
-        case .none:    return "list.bullet"
-        case .ping:    return "speedometer"
-        case .country: return "globe"
-        }
-    }
+    case none = "По умолчанию"
+    case ping = "Пинг"
 }
 
 // MARK: - ProxiesView
@@ -190,63 +181,79 @@ struct ProxiesView: View {
     // MARK: - Filter pills (sort + country)
 
     private var filterPills: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        HStack(spacing: 8) {
+            // Country dropdown
+            Menu {
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        selectedCountry = "Все"
+                    }
+                } label: {
+                    Label("Все страны", systemImage: selectedCountry == "Все" ? "checkmark" : "globe")
+                }
+                Divider()
+                ForEach(availableCountries, id: \.self) { country in
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            selectedCountry = country
+                        }
+                    } label: {
+                        Label(country, systemImage: selectedCountry == country ? "checkmark" : "")
+                    }
+                }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "globe")
+                        .font(.system(size: 11, weight: .medium))
+                    Text(selectedCountry == "Все" ? "Страна" : selectedCountry)
+                        .font(.system(size: 12, weight: .medium))
+                        .lineLimit(1)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
+                }
+                .foregroundColor(selectedCountry == "Все" ? .white.opacity(0.5) : .white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    Capsule()
+                        .fill(selectedCountry == "Все" ? AppTheme.card : AppTheme.accent.opacity(0.25))
+                        .overlay(
+                            Capsule()
+                                .stroke(selectedCountry == "Все" ? Color.white.opacity(0.08) : AppTheme.accent.opacity(0.45), lineWidth: 0.5)
+                        )
+                )
+            }
+
+            // Sort pills: По умолчанию / Пинг
             HStack(spacing: 6) {
-                // Sort pills
                 ForEach(ProxySort.allCases, id: \.self) { sort in
                     let active = selectedSort == sort
                     Button {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            selectedSort = active ? .none : sort
+                            selectedSort = sort
                         }
                     } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: sort.icon)
-                                .font(.system(size: 11, weight: .medium))
-                            Text(sort.rawValue)
-                                .font(.system(size: 12, weight: .medium))
-                        }
-                        .foregroundColor(active ? .white : .white.opacity(0.45))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .background(
-                            Capsule()
-                                .fill(active ? AppTheme.accent.opacity(0.3) : AppTheme.card)
-                                .overlay(
-                                    Capsule()
-                                        .stroke(active ? AppTheme.accent.opacity(0.5) : Color.white.opacity(0.08), lineWidth: 0.5)
-                                )
-                        )
+                        Text(sort.rawValue)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(active ? .white : .white.opacity(0.4))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                Capsule()
+                                    .fill(active ? AppTheme.surface : .clear)
+                                    .overlay(
+                                        Capsule()
+                                            .stroke(active ? Color.white.opacity(0.15) : Color.white.opacity(0.06), lineWidth: 0.5)
+                                    )
+                            )
                     }
                     .buttonStyle(.plain)
                 }
-
-                // Divider
-                if !availableCountries.isEmpty {
-                    Rectangle()
-                        .fill(Color.white.opacity(0.1))
-                        .frame(width: 0.5, height: 20)
-                        .padding(.horizontal, 2)
-                }
-
-                // Country pills
-                if !availableCountries.isEmpty {
-                    CountryPill(label: "Все", active: selectedCountry == "Все") {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            selectedCountry = "Все"
-                        }
-                    }
-                    ForEach(availableCountries, id: \.self) { country in
-                        CountryPill(label: country, active: selectedCountry == country) {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                selectedCountry = selectedCountry == country ? "Все" : country
-                            }
-                        }
-                    }
-                }
             }
-            .padding(.horizontal, 16)
+
+            Spacer()
         }
+        .padding(.horizontal, 16)
     }
 
     // MARK: - Ping progress bar
@@ -417,8 +424,7 @@ struct ProxiesView: View {
                 default:             return false
                 }
             }
-        case .country:
-            list.sort { $0.countryName < $1.countryName }
+
         }
         return list
     }
@@ -442,32 +448,6 @@ struct ProxiesView: View {
     }
 }
 
-// MARK: - Country Pill
-
-struct CountryPill: View {
-    let label: String
-    let active: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Text(label)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(active ? .white : .white.opacity(0.45))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .background(
-                    Capsule()
-                        .fill(active ? AppTheme.green.opacity(0.25) : AppTheme.card)
-                        .overlay(
-                            Capsule()
-                                .stroke(active ? AppTheme.green.opacity(0.5) : Color.white.opacity(0.08), lineWidth: 0.5)
-                        )
-                )
-        }
-        .buttonStyle(.plain)
-    }
-}
 
 // MARK: - Placeholder modifier
 
