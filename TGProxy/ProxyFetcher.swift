@@ -25,10 +25,30 @@ final class ProxyFetcher: NSObject, ObservableObject {
     private let totalWait: Double = 10.0
     private let pageURL = URL(string: "https://mtproto.ru/personal.php")!
 
+    private let maxRetries = 5
+    private let retryDelay: Double = 4.0
+    private(set) var retryCount = 0
+
+    // MARK: - Public
+
     func fetch() {
+        retryCount = 0
+        startLoad()
+    }
+
+    func cancel() {
+        timer?.invalidate()
+        timer = nil
+        webView?.stopLoading()
+        webView = nil
+    }
+
+    // MARK: - Internal
+
+    private func startLoad() {
         cancel()
-        state = .loading(progress: 0)
         elapsed = 0
+        state = .loading(progress: 0)
 
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .nonPersistent()
@@ -44,11 +64,14 @@ final class ProxyFetcher: NSObject, ObservableObject {
         wv.load(req)
     }
 
-    func cancel() {
-        timer?.invalidate()
-        timer = nil
-        webView?.stopLoading()
-        webView = nil
+    private func retry() {
+        retryCount += 1
+        // Keep showing loading with a brief "retrying" phase
+        state = .loading(progress: 0)
+        DispatchQueue.main.asyncAfter(deadline: .now() + retryDelay) { [weak self] in
+            guard let self else { return }
+            self.startLoad()
+        }
     }
 
     private func startCountdown() {
@@ -84,15 +107,20 @@ final class ProxyFetcher: NSObject, ObservableObject {
         """
         do {
             let result = try await wv.evaluateJavaScript(js)
-            guard let href = result as? String, !href.isEmpty else {
-                state = .error("Свободных серверов нет. Попробуйте позже.")
-                return
+            if let href = result as? String, !href.isEmpty {
+                guard let parsed = parseProxy(href) else {
+                    state = .error("Не удалось разобрать ссылку прокси.")
+                    return
+                }
+                state = .ready(parsed)
+            } else {
+                // No proxy available — retry if attempts remain
+                if retryCount < maxRetries {
+                    retry()
+                } else {
+                    state = .error("Серверов нет. Попробуйте позже.")
+                }
             }
-            guard let parsed = parseProxy(href) else {
-                state = .error("Не удалось разобрать ссылку прокси.")
-                return
-            }
-            state = .ready(parsed)
         } catch {
             state = .error("Ошибка загрузки: \(error.localizedDescription)")
         }

@@ -244,6 +244,8 @@ struct MainProxyView: View {
 
     private func countdownLabel(_ p: Double) -> String {
         let s = Int(ceil((1.0 - p) * 10.0))
+        let retry = fetcher.retryCount
+        if retry > 0 { return "Попытка \(retry + 1) из 6…" }
         return s > 0 ? "Ещё ~\(s) сек" : "Получаем данные…"
     }
 
