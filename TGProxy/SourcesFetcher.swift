@@ -105,11 +105,12 @@ final class SourcesFetcher: NSObject, ObservableObject {
         loadState = .loading
         let sources = webSources
         // URLSession: yandex + kakfix + widum = 3; WKWebView sources = sources.count
-        pendingCount = sources.count + 3
+        pendingCount = sources.count + 4  // +yandex +kakfix +widum +soliSpirit
 
         fetchYandex()
         fetchKakfix()
         fetchWidum()
+        fetchSoliSpirit()
         for src in sources { loadWebSource(src) }
     }
 
@@ -161,6 +162,35 @@ final class SourcesFetcher: NSObject, ObservableObject {
                 }
             }
             self.isPinging = false
+        }
+    }
+
+    // MARK: - SoliSpirit GitHub (plain text, one URL per line)
+
+    private func fetchSoliSpirit() {
+        Task {
+            do {
+                var req = URLRequest(url: URL(string: "https://raw.githubusercontent.com/SoliSpirit/mtproto/refs/heads/master/all_proxies.txt")!)
+                req.setValue("curl/7.88", forHTTPHeaderField: "User-Agent")
+                req.timeoutInterval = 15
+                let (data, _) = try await URLSession.shared.data(for: req)
+                let text = String(data: data, encoding: .utf8) ?? ""
+                var items: [ProxyItem] = []
+                for line in text.components(separatedBy: .newlines) {
+                    let raw = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !raw.isEmpty else { continue }
+                    // Convert https://t.me/proxy?... -> tg://proxy?...
+                    let tg = raw
+                        .replacingOccurrences(of: "https://t.me/proxy?", with: "tg://proxy?")
+                        .replacingOccurrences(of: "http://t.me/proxy?",  with: "tg://proxy?")
+                    guard tg.hasPrefix("tg://proxy?") else { continue }
+                    if let item = parseProxyURL(tg, source: "GitHub") {
+                        items.append(item)
+                    }
+                }
+                streamAppend(items)
+            } catch {}
+            finish()
         }
     }
 
