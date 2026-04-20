@@ -89,6 +89,19 @@ final class SourcesFetcher: NSObject, ObservableObject {
         })()
         """
 
+        let silajobJS = """
+
+        (function(){
+            var r=[];
+            var els=document.querySelectorAll('[data-app-href]');
+            for(var i=0;i<els.length;i++){
+                var h=els[i].getAttribute('data-app-href');
+                if(h&&h.indexOf('tg://proxy')===0) r.push(h);
+            }
+            return JSON.stringify(r);
+        })()
+        """
+
         let tgvpnJS = """
 
         (function(){
@@ -144,6 +157,8 @@ final class SourcesFetcher: NSObject, ObservableObject {
                       name: "MTProbe", waitSeconds: 3, jsExtract: mtprobeJS),
         WebSource(url: "https://telegramvpn.org/ru/",
                   name: "TelegramVPN", waitSeconds: 2, jsExtract: tgvpnJS),
+        WebSource(url: "https://sila-net.org/telegram-uskoritel-besplatno.html",
+                  name: "SilaNet", waitSeconds: 3, jsExtract: silajobJS),
         ]
     }
 
