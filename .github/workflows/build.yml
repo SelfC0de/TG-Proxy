@@ -28,6 +28,48 @@ jobs:
             CONFIGURATION_BUILD_DIR=$PWD/build/Release-iphoneos \
             clean build
 
+      - name: Inject icons into .app bundle
+        run: |
+          APP="build/Release-iphoneos/TGProxy.app"
+          ICONS="TGProxy/Assets.xcassets/AppIcon.appiconset"
+
+          # Copy all icon sizes directly into .app
+          cp "$ICONS/Icon-20.png"   "$APP/Icon-20.png"
+          cp "$ICONS/Icon-29.png"   "$APP/Icon-29.png"
+          cp "$ICONS/Icon-40.png"   "$APP/Icon-40.png"
+          cp "$ICONS/Icon-58.png"   "$APP/Icon-58@2x.png"
+          cp "$ICONS/Icon-60.png"   "$APP/Icon-60.png"
+          cp "$ICONS/Icon-80.png"   "$APP/Icon-80.png"   2>/dev/null || cp "$ICONS/Icon-40.png" "$APP/Icon-80.png"
+          cp "$ICONS/Icon-87.png"   "$APP/Icon-87.png"   2>/dev/null || cp "$ICONS/Icon-58.png" "$APP/Icon-87.png"
+          cp "$ICONS/Icon-120.png"  "$APP/Icon-120.png"
+          cp "$ICONS/Icon-152.png"  "$APP/Icon-152.png"
+          cp "$ICONS/Icon-167.png"  "$APP/Icon-167.png"
+          cp "$ICONS/Icon-180.png"  "$APP/Icon-180.png"
+          cp "$ICONS/Icon-1024.png" "$APP/Icon-1024.png"
+
+          # Patch Info.plist with CFBundleIcons
+          PLIST="$APP/Info.plist"
+
+          /usr/libexec/PlistBuddy -c "Delete :CFBundleIcons" "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleIcons dict" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleIcons:CFBundlePrimaryIcon dict" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconFiles array" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconFiles:0 string Icon-60" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconFiles:1 string Icon-120" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconFiles:2 string Icon-180" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleIcons:CFBundlePrimaryIcon:CFBundleIconName string AppIcon" "$PLIST"
+
+          /usr/libexec/PlistBuddy -c "Delete :CFBundleIcons~ipad" "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleIcons~ipad dict" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleIcons~ipad:CFBundlePrimaryIcon dict" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleIcons~ipad:CFBundlePrimaryIcon:CFBundleIconFiles array" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleIcons~ipad:CFBundlePrimaryIcon:CFBundleIconFiles:0 string Icon-76" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleIcons~ipad:CFBundlePrimaryIcon:CFBundleIconFiles:1 string Icon-152" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleIcons~ipad:CFBundlePrimaryIcon:CFBundleIconFiles:2 string Icon-167" "$PLIST"
+
+          echo "Icons injected:"
+          ls "$APP"/Icon-*.png
+
       - name: Package IPA
         run: |
           APP_PATH="build/Release-iphoneos/TGProxy.app"
