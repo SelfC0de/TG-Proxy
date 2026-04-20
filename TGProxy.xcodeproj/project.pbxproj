@@ -1,0 +1,216 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A001 /* TGProxyApp.swift */    = {isa = PBXBuildFile; fileRef = B001; };
+		A002 /* ContentView.swift */   = {isa = PBXBuildFile; fileRef = B002; };
+		A003 /* ProxyFetcher.swift */  = {isa = PBXBuildFile; fileRef = B003; };
+		A004 /* Assets.xcassets */     = {isa = PBXBuildFile; fileRef = B004; };
+		A005 /* ProxyModel.swift */    = {isa = PBXBuildFile; fileRef = B005; };
+		A006 /* SourcesFetcher.swift */= {isa = PBXBuildFile; fileRef = B006; };
+		A007 /* ProxiesView.swift */   = {isa = PBXBuildFile; fileRef = B007; };
+		A008 /* PingService.swift */   = {isa = PBXBuildFile; fileRef = B008; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		B001 /* TGProxyApp.swift */    = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TGProxyApp.swift;    sourceTree = "<group>"; };
+		B002 /* ContentView.swift */   = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift;   sourceTree = "<group>"; };
+		B003 /* ProxyFetcher.swift */  = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyFetcher.swift;  sourceTree = "<group>"; };
+		B004 /* Assets.xcassets */     = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B005 /* ProxyModel.swift */    = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxyModel.swift;    sourceTree = "<group>"; };
+		B006 /* SourcesFetcher.swift */= {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourcesFetcher.swift;sourceTree = "<group>"; };
+		B007 /* ProxiesView.swift */   = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProxiesView.swift;   sourceTree = "<group>"; };
+		B008 /* PingService.swift */   = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PingService.swift;   sourceTree = "<group>"; };
+		B009 /* Info.plist */          = {isa = PBXFileReference; lastKnownFileType = text.plist.xml;   path = Info.plist;          sourceTree = "<group>"; };
+		PROD /* TGProxy.app */         = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TGProxy.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		FW01 = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		ROOT = {
+			isa = PBXGroup;
+			children = (GRP1, GRP2);
+			sourceTree = "<group>";
+		};
+		GRP1 /* TGProxy */ = {
+			isa = PBXGroup;
+			children = (B001, B002, B003, B005, B006, B007, B008, B004, B009);
+			path = TGProxy;
+			sourceTree = "<group>";
+		};
+		GRP2 /* Products */ = {
+			isa = PBXGroup;
+			children = (PROD);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		TGT1 /* TGProxy */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = XCL1;
+			buildPhases = (SRC1, FW01, RES1);
+			buildRules = ();
+			dependencies = ();
+			name = TGProxy;
+			productName = TGProxy;
+			productReference = PROD;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		PROJ /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = { TGT1 = { CreatedOnToolsVersion = 15.0; }; };
+			};
+			buildConfigurationList = XCL0;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = ru;
+			hasScannedForEncodings = 0;
+			knownRegions = (en, ru, Base);
+			mainGroup = ROOT;
+			productRefGroup = GRP2;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (TGT1);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		RES1 = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (A004);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		SRC1 = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (A001, A002, A003, A005, A006, A007, A008);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		C001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = ("DEBUG=1","$(inherited)");
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		C002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		C003 /* Debug Target */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "";
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = TGProxy/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)","@executable_path/Frameworks");
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.selfcode.tgproxy;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		C004 /* Release Target */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "";
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_REQUIRED = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = TGProxy/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)","@executable_path/Frameworks");
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.selfcode.tgproxy;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		XCL0 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (C001, C002);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		XCL1 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (C003, C004);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = PROJ;
+}

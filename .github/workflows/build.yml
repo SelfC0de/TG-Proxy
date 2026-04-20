@@ -1,0 +1,47 @@
+name: Build IPA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+
+      - name: Build (no signing)
+        run: |
+          xcodebuild \
+            -project TGProxy.xcodeproj \
+            -scheme TGProxy \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            CONFIGURATION_BUILD_DIR=$PWD/build/Release-iphoneos \
+            clean build
+
+      - name: Package IPA
+        run: |
+          APP_PATH="build/Release-iphoneos/TGProxy.app"
+          mkdir -p Payload
+          cp -r "$APP_PATH" Payload/TGProxy.app
+          zip -r TGProxy.ipa Payload
+          rm -rf Payload
+
+      - name: Create Pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: TGProxy v1.0.${{ github.run_number }}
+          prerelease: true
+          files: TGProxy.ipa
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
