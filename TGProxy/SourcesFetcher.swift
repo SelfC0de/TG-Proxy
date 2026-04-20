@@ -7,6 +7,7 @@ final class SourcesFetcher: NSObject, ObservableObject {
     @Published var proxies: [ProxyItem] = []
     @Published var loadState: SourceLoadState = .idle
     @Published var isPinging = false
+    @Published var availableCount: Int = 0
 
     private var webViews: [WKWebView] = []
     private var pendingCount = 0
@@ -121,8 +122,12 @@ final class SourcesFetcher: NSObject, ObservableObject {
             let port = UInt16(item.port) ?? 443
             let ms = await PingService.shared.ping(server: item.server, port: port)
             if let i = self.proxies.firstIndex(where: { $0.id == item.id }) {
-                self.proxies[i].pingMs = ms
-                self.proxies[i].pingState = ms != nil ? .done : .failed
+                if ms != nil {
+                    self.proxies[i].pingMs = ms
+                    self.proxies[i].pingState = .done
+                } else {
+                    self.proxies.remove(at: i)
+                }
             }
         }
     }
@@ -163,6 +168,7 @@ final class SourcesFetcher: NSObject, ObservableObject {
                 default:             return false
                 }
             }
+            self.availableCount = self.proxies.filter { $0.pingState == .done }.count
             self.isPinging = false
         }
     }

@@ -130,7 +130,8 @@ struct ProxiesView: View {
     private var proxyList: some View {
         ScrollView(showsIndicators: false) {
             LazyVStack(spacing: 0) {
-                ForEach(Array(fetcher.proxies.enumerated()), id: \.element.id) { i, item in
+                let visible = fetcher.proxies.filter { $0.pingState != .failed }
+                ForEach(Array(visible.enumerated()), id: \.element.id) { i, item in
                     ProxyRow(item: item, onPing: {
                         fetcher.pingSingle(item)
                     }, onQR: {
@@ -156,7 +157,13 @@ struct ProxiesView: View {
     // MARK: - Helpers
 
     private var countLabel: String {
-        fetcher.proxies.isEmpty ? "Загрузка…" : "\(fetcher.proxies.count) серверов"
+        if fetcher.proxies.isEmpty { return "Загрузка…" }
+        let total = fetcher.proxies.count
+        let avail = fetcher.availableCount
+        if avail > 0 {
+            return "\(total) серверов  |  Доступно \(avail)"
+        }
+        return "\(total) серверов"
     }
 
     private var isLoading: Bool {
