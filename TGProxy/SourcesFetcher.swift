@@ -18,6 +18,7 @@ final class SourcesFetcher: NSObject, ObservableObject {
         let jsExtract: String
     }
 
+    // Only JS-rendered sources here
     private var webSources: [WebSource] {
         let speedupJS = """
         (function(){
@@ -49,26 +50,8 @@ final class SourcesFetcher: NSObject, ObservableObject {
         })()
         """
 
-        let widumJS = """
-        (function(){
-            var r=[];
-            var items=document.querySelectorAll('.proxy-list .proxy-item');
-            for(var i=0;i<items.length;i++){
-                var a=items[i].querySelector('a[href]');
-                if(!a) continue;
-                var h=a.getAttribute('href');
-                if(!h||h.indexOf('tg://')<0) continue;
-                var country='';
-                var spans=items[i].querySelectorAll('.proxy-country span');
-                if(spans.length>1) country=spans[spans.length-1].textContent.trim();
-                r.push(JSON.stringify({url:h,country:country}));
-            }
-            return JSON.stringify(r);
-        })()
-        """
-
-        // MTProbe: click "load more" until gone, then collect all.
-        // Regex uses string concat to avoid Swift escape issues: "/" + "([A-Z]{2})" + "\\.svg$"
+        // MTProbe: click "load more" until gone, collect all.
+        // Country from flag img src: split by '/', take last part, first 2 chars = country code
         let mtprobeJS = """
         (function(){
             var clickAndWait=function(resolve){
@@ -106,9 +89,10 @@ final class SourcesFetcher: NSObject, ObservableObject {
         """
 
         return [
-            WebSource(url: "https://speedupnet.vip/proxy",              name: "SpeedUpNet", waitSeconds: 4, jsExtract: speedupJS),
-            WebSource(url: "https://mtproxytg3.vercel.app/",             name: "MTProxyTG3", waitSeconds: 6, jsExtract: mtproxyTG3JS),
-            WebSource(url: "https://widum.ru/proxy/",                    name: "Widum",      waitSeconds: 6, jsExtract: widumJS),
+            WebSource(url: "https://speedupnet.vip/proxy",
+                      name: "SpeedUpNet", waitSeconds: 4, jsExtract: speedupJS),
+            WebSource(url: "https://mtproxytg3.vercel.app/",
+                      name: "MTProxyTG3", waitSeconds: 6, jsExtract: mtproxyTG3JS),
             WebSource(url: "https://mtprobe.cyou/free-mtproto-proxies?max_ping=100&ee_mask=true",
                       name: "MTProbe", waitSeconds: 3, jsExtract: mtprobeJS),
         ]
@@ -120,10 +104,12 @@ final class SourcesFetcher: NSObject, ObservableObject {
         proxies = []
         loadState = .loading
         let sources = webSources
-        pendingCount = sources.count + 2  // +yandex +kakfix
+        // URLSession: yandex + kakfix + widum = 3; WKWebView sources = sources.count
+        pendingCount = sources.count + 3
 
         fetchYandex()
         fetchKakfix()
+        fetchWidum()
         for src in sources { loadWebSource(src) }
     }
 
@@ -165,7 +151,7 @@ final class SourcesFetcher: NSObject, ObservableObject {
         }
     }
 
-    // MARK: - Yandex
+    // MARK: - Yandex (static HTML, URLSession)
 
     private func fetchYandex() {
         Task {
@@ -175,82 +161,98 @@ final class SourcesFetcher: NSObject, ObservableObject {
                 req.timeoutInterval = 15
                 let (data, _) = try await URLSession.shared.data(for: req)
                 let html = String(data: data, encoding: .utf8) ?? ""
-                let items = parseByHref(html, source: "Яндекс")
+                streamAppend(parseByHref(html, source: "Яндекс"))
+            } catch {}
+            finish()
+        }
+    }
+
+    // MARK: - KakFix (JSON API — returns all 200 proxies in one request)
+
+    private func fetchKakfix() {
+        Task {
+            do {
+                var req = URLRequest(url: URL(string: "https://kakfix.online/api/proxies.php")!)
+                req.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+                             forHTTPHeaderField: "User-Agent")
+                req.setValue("application/json", forHTTPHeaderField: "Accept")
+                req.setValue("https://kakfix.online/ru/proxies", forHTTPHeaderField: "Referer")
+                req.timeoutInterval = 20
+                let (data, _) = try await URLSession.shared.data(for: req)
+                let items = parseKakfixJSON(data)
                 streamAppend(items)
             } catch {}
             finish()
         }
     }
 
-    // MARK: - KakFix (10 pages parallel)
+    private func parseKakfixJSON(_ data: Data) -> [ProxyItem] {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let success = json["success"] as? Bool, success,
+              let dataObj = json["data"] as? [String: Any],
+              let proxies = dataObj["proxies"] as? [[String: Any]] else { return [] }
 
-    private func fetchKakfix() {
+        return proxies.compactMap { p -> ProxyItem? in
+            guard let host   = p["host"]   as? String,
+                  let portAny = p["port"],
+                  let secret = p["secret"] as? String,
+                  !host.isEmpty, !secret.isEmpty else { return nil }
+            let port: String
+            if let pi = portAny as? Int        { port = String(pi) }
+            else if let ps = portAny as? String { port = ps }
+            else { return nil }
+            let tgURL = "tg://proxy?server=\(host)&port=\(port)&secret=\(secret)"
+            var item = ProxyItem(server: host, port: port, tgURL: tgURL, sourceName: "KakFix")
+            item.countryName = (p["country_name"] as? String) ?? ""
+            return item
+        }
+    }
+
+    // MARK: - Widum (static HTML, URLSession)
+
+    private func fetchWidum() {
         Task {
-            await withTaskGroup(of: [ProxyItem].self) { group in
-                for page in 1...10 {
-                    group.addTask { [weak self] in
-                        guard let self else { return [] }
-                        return await self.fetchKakfixPage(page)
-                    }
-                }
-                // Stream results page by page as they arrive
-                for await items in group {
-                    if !items.isEmpty { streamAppend(items) }
-                }
-            }
+            do {
+                var req = URLRequest(url: URL(string: "https://widum.ru/proxy/")!)
+                req.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+                             forHTTPHeaderField: "User-Agent")
+                req.setValue("text/html,application/xhtml+xml", forHTTPHeaderField: "Accept")
+                req.timeoutInterval = 15
+                let (data, _) = try await URLSession.shared.data(for: req)
+                let html = String(data: data, encoding: .utf8) ?? ""
+                streamAppend(parseWidum(html))
+            } catch {}
             finish()
         }
     }
 
-    private func fetchKakfixPage(_ page: Int) async -> [ProxyItem] {
-        let urlStr = page == 1
-            ? "https://kakfix.online/ru/proxies"
-            : "https://kakfix.online/ru/proxies?page=\(page)"
-        guard let url = URL(string: urlStr) else { return [] }
-        var req = URLRequest(url: url)
-        req.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15", forHTTPHeaderField: "User-Agent")
-        req.setValue("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", forHTTPHeaderField: "Accept")
-        req.setValue("https://kakfix.online", forHTTPHeaderField: "Referer")
-        req.timeoutInterval = 15
-        do {
-            let (data, _) = try await URLSession.shared.data(for: req)
-            let html = String(data: data, encoding: .utf8) ?? ""
-            return parseKakfix(html)
-        } catch { return [] }
-    }
-
-    private func parseKakfix(_ html: String) -> [ProxyItem] {
+    private func parseWidum(_ html: String) -> [ProxyItem] {
         var result: [ProxyItem] = []
-        let blocks = html.components(separatedBy: "proxy-card__actions")
+        // Split by proxy-item blocks
+        let blocks = html.components(separatedBy: "class=\"proxy-item\"")
         guard blocks.count > 1 else { return [] }
 
-        // Countries: text after emoji span closing tag
-        var countries: [String] = []
-        if let re = try? NSRegularExpression(
-            pattern: "proxy-card__country[^>]*>[^<]*</span>\\s*([A-Za-z\\u00C0-\\u024F ]+)"
-        ) {
-            let ns = html as NSString
-            for m in re.matches(in: html, range: NSRange(location: 0, length: ns.length)) {
-                let c = ns.substring(with: m.range(at: 1))
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                if !c.isEmpty { countries.append(c) }
-            }
-        }
+        let hrefRe    = try? NSRegularExpression(pattern: "href=\"(tg://proxy\\?[^\"]+)\"")
+        let countryRe = try? NSRegularExpression(pattern: "<span[^>]*>[^<]{1,30}</span>\\s*</div>\\s*</div>")
+        // Simpler country: data-country-code="XX"
+        let codeRe    = try? NSRegularExpression(pattern: "data-country-code=\"([a-z]{2})\"")
 
-        let hrefRe = try? NSRegularExpression(pattern: "href=\"(tg://proxy\\?[^\"]+)\"")
-        var idx = 0
         for block in blocks.dropFirst() {
             let ns = block as NSString
-            if let re = hrefRe,
-               let m = re.firstMatch(in: block, range: NSRange(location: 0, length: ns.length)) {
-                let raw = ns.substring(with: m.range(at: 1))
-                    .replacingOccurrences(of: "&amp;", with: "&")
-                if var item = parseProxyURL(raw, source: "KakFix") {
-                    item.countryName = idx < countries.count ? countries[idx] : ""
-                    result.append(item)
-                }
+            let range = NSRange(location: 0, length: ns.length)
+
+            guard let re = hrefRe,
+                  let m = re.firstMatch(in: block, range: range) else { continue }
+            let href = ns.substring(with: m.range(at: 1))
+                .replacingOccurrences(of: "&amp;", with: "&")
+            guard var item = parseProxyURL(href, source: "Widum") else { continue }
+
+            // Country from data-country-code attribute
+            if let cr = codeRe,
+               let cm = cr.firstMatch(in: block, range: range) {
+                item.countryName = ns.substring(with: cm.range(at: 1)).uppercased()
             }
-            idx += 1
+            result.append(item)
         }
         return result
     }
@@ -307,14 +309,13 @@ final class SourcesFetcher: NSObject, ObservableObject {
         }
     }
 
-    // MARK: - Streaming append (shows results progressively)
+    // MARK: - Streaming append
 
     private func streamAppend(_ items: [ProxyItem]) {
         let existingKeys = Set(proxies.map { "\($0.server):\($0.port)" })
         let fresh = items.filter { !existingKeys.contains("\($0.server):\($0.port)") }
         guard !fresh.isEmpty else { return }
         proxies.append(contentsOf: fresh)
-        // Show partial results immediately
         if case .loading = loadState { loadState = .done }
     }
 
