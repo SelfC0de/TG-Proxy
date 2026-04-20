@@ -81,6 +81,44 @@ final class SourcesFetcher: NSObject, ObservableObject {
             })()
             """
         ),
+        WebSource(
+            url: "https://mtprobe.cyou/free-mtproto-proxies?max_ping=100&ee_mask=true",
+            name: "MTProbe",
+            waitSeconds: 3,
+            jsExtract: """
+            (function(){
+                var clickAndWait=function(resolve){
+                    var btn=document.getElementById('load_more_btn');
+                    if(!btn||btn.style.display==='none'||btn.disabled){resolve();return;}
+                    btn.click();
+                    setTimeout(function(){clickAndWait(resolve);},1800);
+                };
+                return new Promise(function(resolve){
+                    clickAndWait(function(){
+                        setTimeout(function(){
+                            var r=[];
+                            var cards=document.querySelectorAll('#servers_container .server-card');
+                            for(var i=0;i<cards.length;i++){
+                                var el=cards[i].querySelector('[data-link]');
+                                if(!el) continue;
+                                var h=el.getAttribute('data-link');
+                                if(!h||h.indexOf('tg://')<0) continue;
+                                var country='';
+                                var flag=cards[i].querySelector('img.flag');
+                                if(flag){
+                                    var src=flag.getAttribute('src')||'';
+                                    var m=src.match(/\/([A-Z]{2})\.svg$/);
+                                    if(m) country=m[1];
+                                }
+                                r.push(JSON.stringify({url:h,country:country}));
+                            }
+                            resolve(JSON.stringify(r));
+                        },1000);
+                    });
+                });
+            })()
+            """
+        ),
     ]
 
     // MARK: - Public
@@ -88,7 +126,7 @@ final class SourcesFetcher: NSObject, ObservableObject {
     func loadAll() {
         proxies = []
         loadState = .loading
-        pendingCount = webSources.count + 2  // yandex + kakfix
+        pendingCount = webSources.count + 2  // yandex + kakfix (mtprobe via webSources)
 
         fetchYandex()
         fetchKakfix()
