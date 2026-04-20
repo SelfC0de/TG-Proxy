@@ -127,40 +127,21 @@ struct ProxiesView: View {
 
     private var proxyList: some View {
         ScrollView(showsIndicators: false) {
-            LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
-                let sources = Array(Set(fetcher.proxies.map { $0.sourceName })).sorted()
-                ForEach(Array(sources.enumerated()), id: \.element) { sIdx, src in
-                    let items = fetcher.proxies.filter { $0.sourceName == src }
-                    Section {
-                        ForEach(Array(items.enumerated()), id: \.element.id) { i, item in
-                            ProxyRow(item: item)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 3)
-                                .opacity(appeared ? 1 : 0)
-                                .offset(y: appeared ? 0 : 10)
-                                .animation(
-                                    .spring(response: 0.45, dampingFraction: 0.8)
-                                        .delay(Double(sIdx * 4 + i) * 0.03),
-                                    value: appeared
-                                )
-                        }
-                    } header: {
-                        HStack {
-                            Text(src.uppercased())
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundColor(.white.opacity(0.25))
-                                .kerning(0.8)
-                            Spacer()
-                            Text("\(items.count)")
-                                .font(.system(size: 10))
-                                .foregroundColor(.white.opacity(0.2))
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 8)
-                        .background(AppTheme.bg.opacity(0.95))
-                    }
+            LazyVStack(spacing: 0) {
+                ForEach(Array(fetcher.proxies.enumerated()), id: \.element.id) { i, item in
+                    ProxyRow(item: item)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 3)
+                        .opacity(appeared ? 1 : 0)
+                        .offset(y: appeared ? 0 : 10)
+                        .animation(
+                            .spring(response: 0.45, dampingFraction: 0.8)
+                                .delay(Double(i) * 0.025),
+                            value: appeared
+                        )
                 }
             }
+            .padding(.top, 6)
             .padding(.bottom, 100)
         }
         .transition(.opacity.combined(with: .offset(y: 8)))
