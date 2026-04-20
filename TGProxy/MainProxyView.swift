@@ -3,6 +3,9 @@ import SwiftUI
 struct MainProxyView: View {
     @ObservedObject var fetcher: ProxyFetcher
     @State private var appeared = false
+    @State private var pingState: ProxyItem.PingState = .idle
+    @State private var pingMs: Int? = nil
+    @State private var showQR = false
 
     var body: some View {
         ZStack {
@@ -29,6 +32,16 @@ struct MainProxyView: View {
                 appeared = true
             }
             fetcher.fetch()
+        }
+        .sheet(isPresented: $showQR) {
+            if case .ready(let data) = fetcher.state {
+                QRSheet(item: ProxyItem(
+                    server: data.server,
+                    port: data.port,
+                    tgURL: data.tgURL,
+                    sourceName: "mtproto.ru"
+                ))
+            }
         }
     }
 
@@ -160,6 +173,18 @@ struct MainProxyView: View {
             InfoRow(label: "Сервер", value: shortServer(data.server))
             Spacer().frame(height: 10)
             InfoRow(label: "Порт", value: data.port)
+
+            // Ping row
+            if pingState != .idle {
+                Spacer().frame(height: 10)
+                HStack {
+                    Text("Ping")
+                        .font(.system(size: 12))
+                        .foregroundColor(.white.opacity(0.35))
+                    Spacer()
+                    pingLabel
+                }
+            }
         }
         .padding(20)
         .background(cardBackground)
@@ -167,6 +192,32 @@ struct MainProxyView: View {
             insertion: .opacity.combined(with: .offset(y: 12)),
             removal:   .opacity.combined(with: .offset(y: -8))
         ))
+    }
+
+    @ViewBuilder
+    private var pingLabel: some View {
+        switch pingState {
+        case .idle:
+            EmptyView()
+        case .pinging:
+            HStack(spacing: 6) {
+                ProgressView().progressViewStyle(.circular).tint(AppTheme.accent).scaleEffect(0.6)
+                Text("Проверка…")
+                    .font(.system(size: 12))
+                    .foregroundColor(.white.opacity(0.4))
+            }
+        case .done:
+            let ms = pingMs ?? 0
+            let color = ms < 150 ? AppTheme.green : ms < 400 ? AppTheme.amber : AppTheme.red
+            Text("\(ms) ms")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(color)
+                .transition(.opacity.combined(with: .scale(scale: 0.85)))
+        case .failed:
+            Text("Недоступен")
+                .font(.system(size: 12))
+                .foregroundColor(AppTheme.red)
+        }
     }
 
     // MARK: - Error card
@@ -202,16 +253,15 @@ struct MainProxyView: View {
 
     private var bottomButtons: some View {
         VStack(spacing: 10) {
+            // Connect
             Button {
                 guard case .ready(let data) = fetcher.state,
                       let url = URL(string: data.tgURL) else { return }
                 UIApplication.shared.open(url)
             } label: {
                 HStack(spacing: 8) {
-                    Image(systemName: "paperplane.fill")
-                        .font(.system(size: 14))
-                    Text("Подключить Telegram")
-                        .font(.system(size: 15, weight: .semibold))
+                    Image(systemName: "paperplane.fill").font(.system(size: 14))
+                    Text("Подключить Telegram").font(.system(size: 15, weight: .semibold))
                 }
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
@@ -227,11 +277,79 @@ struct MainProxyView: View {
             .offset(y: appeared ? 0 : 12)
             .animation(.spring(response: 0.5, dampingFraction: 0.8).delay(0.2), value: appeared)
 
+            // Ping + QR row
+            HStack(spacing: 10) {
+                // Ping button
+                Button {
+                    guard case .ready(let data) = fetcher.state else { return }
+                    pingState = .pinging
+                    pingMs = nil
+                    Task {
+                        let port = UInt16(data.port) ?? 443
+                        let ms = await PingService.shared.ping(server: data.server, port: port)
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                            pingMs = ms
+                            pingState = ms != nil ? .done : .failed
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "antenna.radiowaves.left.and.right")
+                            .font(.system(size: 13, weight: .medium))
+                            .symbolEffect(.variableColor.iterative.reversing, isActive: pingState == .pinging)
+                        Text("Ping")
+                            .font(.system(size: 14, weight: .medium))
+                    }
+                    .foregroundColor(isReady ? .white.opacity(0.65) : .white.opacity(0.2))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(AppTheme.card)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+                            )
+                    )
+                }
+                .disabled(!isReady || pingState == .pinging)
+
+                // QR button
+                Button {
+                    showQR = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "qrcode")
+                            .font(.system(size: 13, weight: .medium))
+                        Text("QR")
+                            .font(.system(size: 14, weight: .medium))
+                    }
+                    .foregroundColor(isReady ? .white.opacity(0.65) : .white.opacity(0.2))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(AppTheme.card)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+                            )
+                    )
+                }
+                .disabled(!isReady)
+            }
+            .buttonStyle(.plain)
+            .opacity(appeared ? 1 : 0)
+            .offset(y: appeared ? 0 : 10)
+            .animation(.spring(response: 0.5, dampingFraction: 0.8).delay(0.22), value: appeared)
+
             RefreshButton(label: "Обновить") {
                 fetcher.fetch()
+                pingState = .idle
+                pingMs = nil
             }
             .opacity(appeared ? 1 : 0)
-            .animation(.easeOut(duration: 0.4).delay(0.25), value: appeared)
+            .animation(.easeOut(duration: 0.4).delay(0.27), value: appeared)
         }
     }
 
