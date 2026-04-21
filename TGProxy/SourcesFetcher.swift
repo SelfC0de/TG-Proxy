@@ -204,7 +204,7 @@ final class SourcesFetcher: NSObject, ObservableObject {
         loadState = .loading
         let sources = webSources
         // URLSession: yandex + kakfix + widum = 3; WKWebView sources = sources.count
-        pendingCount = sources.count + 13  // +yandex +kakfix +widum +soliSpirit +cloxybot +wwproxy +bbqpirat +bv24 +lsolutions +kort_eu +kort_ru +mtprotolol +cloxybot_lte
+        pendingCount = sources.count + 14  // ...+esimpson
 
         fetchYandex()
         fetchKakfix()
@@ -212,6 +212,7 @@ final class SourcesFetcher: NSObject, ObservableObject {
         fetchSoliSpirit()
         fetchCloxybot()
         fetchCloxybotLTE()
+        fetchESimpson()
         fetchWWProxy()
         fetchBBQPirat()
         fetchBV24()
@@ -455,6 +456,67 @@ final class SourcesFetcher: NSObject, ObservableObject {
             } catch {}
             finish()
         }
+    }
+
+    // MARK: - eSimpsonConnection Telegram channel (LTE, URLSession)
+    // Fetches https://t.me/s/eSimpsonConnection, finds last N posts with proxy links,
+    // picks proxies from highest post number down.
+
+    private func fetchESimpson() {
+        Task {
+            do {
+                var req = URLRequest(url: URL(string: "https://t.me/s/eSimpsonConnection")!)
+                req.setValue(
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36",
+                    forHTTPHeaderField: "User-Agent"
+                )
+                req.setValue("text/html,application/xhtml+xml", forHTTPHeaderField: "Accept")
+                req.timeoutInterval = 15
+                let (data, _) = try await URLSession.shared.data(for: req)
+                let html = String(data: data, encoding: .utf8) ?? ""
+                streamAppend(parseESimpson(html))
+            } catch {}
+            finish()
+        }
+    }
+
+    private func parseESimpson(_ html: String) -> [ProxyItem] {
+        // Find all (postNumber, proxyURL) pairs, take 5 most recent by highest post number
+        guard let postRe  = try? NSRegularExpression(pattern: #"data-post="eSimpsonConnection/(\d+)""#),
+              let proxyRe = try? NSRegularExpression(pattern: #"href="https://t\.me/proxy\?([^"]+)""#)
+        else { return [] }
+
+        let ns = html as NSString
+        let len = NSRange(location: 0, length: ns.length)
+
+        // Collect all post positions with their numbers
+        var postPositions: [(Int, Int)] = [] // (postNumber, charIndex)
+        for m in postRe.matches(in: html, range: len) {
+            let num = Int(ns.substring(with: m.range(at: 1))) ?? 0
+            postPositions.append((num, m.range.location))
+        }
+        postPositions.sort { $0.0 > $1.0 } // highest post first
+
+        var results: [ProxyItem] = []
+        for (_, startIdx) in postPositions {
+            // Search for proxy in the block from this post to next
+            let nextIdx = postPositions.first(where: { $0.1 > startIdx })?.1 ?? min(startIdx + 3000, ns.length)
+            let blockRange = NSRange(location: startIdx, length: nextIdx - startIdx)
+            let block = ns.substring(with: blockRange)
+
+            if let m = proxyRe.firstMatch(in: block, range: NSRange(location: 0, length: block.count)) {
+                let blockNS = block as NSString
+                let raw = blockNS.substring(with: m.range(at: 1))
+                    .replacingOccurrences(of: "&amp;", with: "&")
+                let tgURL = "tg://proxy?" + raw
+                if var item = parseProxyURL(tgURL, source: "eSimpson") {
+                    item.networkType = .lte
+                    results.append(item)
+                    if results.count >= 5 { break }
+                }
+            }
+        }
+        return results
     }
 
     // MARK: - Cloxybot LTE

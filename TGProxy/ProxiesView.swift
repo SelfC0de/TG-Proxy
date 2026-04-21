@@ -38,18 +38,28 @@ struct ProxiesView: View {
                     .opacity(appeared ? 1 : 0)
                     .animation(.easeOut(duration: 0.3).delay(0.08), value: appeared)
 
-                // Search
-                searchBar
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
-                    .opacity(appeared ? 1 : 0)
-                    .animation(.easeOut(duration: 0.3).delay(0.1), value: appeared)
+                // Search (WiFi only)
+                if networkTab == .wifi {
+                    searchBar
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                        .opacity(appeared ? 1 : 0)
+                        .animation(.easeOut(duration: 0.3).delay(0.1), value: appeared)
+                }
 
-                // Country + sort row
-                controlRow
-                    .padding(.top, 8)
-                    .opacity(appeared ? 1 : 0)
-                    .animation(.easeOut(duration: 0.3).delay(0.15), value: appeared)
+                // WiFi: search + sort/country; LTE: stats only
+                if networkTab == .wifi {
+                    controlRow
+                        .padding(.top, 8)
+                        .opacity(appeared ? 1 : 0)
+                        .animation(.easeOut(duration: 0.3).delay(0.15), value: appeared)
+                } else {
+                    lteStatsRow
+                        .padding(.top, 8)
+                        .padding(.horizontal, 16)
+                        .opacity(appeared ? 1 : 0)
+                        .animation(.easeOut(duration: 0.3).delay(0.15), value: appeared)
+                }
 
                 // Ping progress
                 if isCurrentTabPinging && fetcher.pingTotal > 0 {
@@ -249,6 +259,53 @@ struct ProxiesView: View {
                         .stroke(Color.white.opacity(0.07), lineWidth: 0.5)
                 )
         )
+    }
+
+    // MARK: - LTE stats row
+
+    private var lteStatsRow: some View {
+        HStack(spacing: 16) {
+            HStack(spacing: 6) {
+                Image(systemName: "cellularbars")
+                    .font(.system(size: 12))
+                    .foregroundColor(.white.opacity(0.4))
+                Text("\(lteProxies.count) серверов")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.white.opacity(0.5))
+                    .contentTransition(.numericText())
+                    .animation(.easeInOut(duration: 0.3), value: lteProxies.count)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(
+                Capsule()
+                    .fill(AppTheme.card)
+                    .overlay(Capsule().stroke(Color.white.opacity(0.07), lineWidth: 0.5))
+            )
+
+            let lteAvail = lteProxies.filter { $0.pingState == .done }.count
+            if lteAvail > 0 {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(AppTheme.green)
+                        .frame(width: 7, height: 7)
+                        .shadow(color: AppTheme.green.opacity(0.5), radius: 3)
+                    Text("Доступно \(lteAvail)")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(AppTheme.green)
+                        .contentTransition(.numericText())
+                        .animation(.easeInOut(duration: 0.3), value: lteAvail)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(
+                    Capsule()
+                        .fill(AppTheme.green.opacity(0.1))
+                        .overlay(Capsule().stroke(AppTheme.green.opacity(0.25), lineWidth: 0.5))
+                )
+            }
+            Spacer()
+        }
     }
 
     // MARK: - Control row (country dropdown + sort pills)
