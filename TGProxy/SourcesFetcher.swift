@@ -7,6 +7,8 @@ final class SourcesFetcher: NSObject, ObservableObject {
     @Published var proxies: [ProxyItem] = []
     @Published var loadState: SourceLoadState = .idle
     @Published var isPinging = false
+    @Published var isPingingWifi = false
+    @Published var isPingingLte  = false
     @Published var availableCount: Int = 0
     @Published var pingProgress: Int = 0
     @Published var pingTotal: Int = 0
@@ -220,12 +222,15 @@ final class SourcesFetcher: NSObject, ObservableObject {
         }
     }
 
-    func pingAll() {
-        guard !proxies.isEmpty else { return }
+    func pingAll(networkType: NetworkType? = nil) {
+        let items = networkType == nil ? proxies : proxies.filter { $0.networkType == networkType }
+        guard !items.isEmpty else { return }
         isPinging = true
+        if networkType == .wifi || networkType == nil { isPingingWifi = true }
+        if networkType == .lte  || networkType == nil { isPingingLte  = true }
         pingProgress = 0
-        pingTotal = proxies.count
-        let items = proxies
+        pingTotal = items.count
+        let items = items
         Task {
             await withTaskGroup(of: (UUID, Int?).self) { group in
                 for item in items {
@@ -263,6 +268,8 @@ final class SourcesFetcher: NSObject, ObservableObject {
             self.pingProgress = 0
             self.pingTotal = 0
             self.isPinging = false
+            self.isPingingWifi = false
+            self.isPingingLte  = false
         }
     }
 

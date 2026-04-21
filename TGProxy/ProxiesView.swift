@@ -52,7 +52,7 @@ struct ProxiesView: View {
                     .animation(.easeOut(duration: 0.3).delay(0.15), value: appeared)
 
                 // Ping progress
-                if fetcher.isPinging && fetcher.pingTotal > 0 {
+                if isCurrentTabPinging && fetcher.pingTotal > 0 {
                     pingProgressBar
                         .padding(.horizontal, 16)
                         .padding(.top, 6)
@@ -190,15 +190,15 @@ struct ProxiesView: View {
             Spacer()
 
             HStack(spacing: 10) {
-                Button { fetcher.pingAll() } label: {
-                    Image(systemName: "antenna.radiowaves.left.and.right")
+                Button { fetcher.pingAll(networkType: networkTab) } label: {
+                    Image(systemName: networkTab == .wifi ? "antenna.radiowaves.left.and.right" : "cellularbars")
                         .font(.system(size: 15, weight: .medium))
                         .foregroundColor(pingButtonColor)
-                        .symbolEffect(.variableColor.iterative.reversing, isActive: fetcher.isPinging)
+                        .symbolEffect(.variableColor.iterative.reversing, isActive: isCurrentTabPinging)
                         .frame(width: 36, height: 36)
                         .background(Circle().fill(AppTheme.surface))
                 }
-                .disabled(fetcher.proxies.isEmpty || fetcher.isPinging)
+                .disabled(activeProxies.isEmpty || isCurrentTabPinging)
                 .opacity(appeared ? 1 : 0)
                 .offset(y: appeared ? 0 : -8)
                 .animation(.spring(response: 0.45, dampingFraction: 0.8).delay(0.1), value: appeared)
@@ -503,9 +503,13 @@ struct ProxiesView: View {
         fetcher.proxies.isEmpty ? "Загрузка…" : "\(fetcher.proxies.count) серверов"
     }
 
+    private var isCurrentTabPinging: Bool {
+        networkTab == .wifi ? fetcher.isPingingWifi : fetcher.isPingingLte
+    }
+
     private var pingButtonColor: Color {
-        if fetcher.proxies.isEmpty { return .white.opacity(0.2) }
-        return fetcher.isPinging ? AppTheme.accent : .white.opacity(0.55)
+        if activeProxies.isEmpty { return .white.opacity(0.2) }
+        return isCurrentTabPinging ? AppTheme.accent : .white.opacity(0.55)
     }
 }
 
