@@ -186,7 +186,7 @@ final class SourcesFetcher: NSObject, ObservableObject {
         loadState = .loading
         let sources = webSources
         // URLSession: yandex + kakfix + widum = 3; WKWebView sources = sources.count
-        pendingCount = sources.count + 11  // +yandex +kakfix +widum +soliSpirit +cloxybot +wwproxy +bbqpirat +bv24 +lsolutions +kort_eu +kort_ru
+        pendingCount = sources.count + 12  // +yandex +kakfix +widum +soliSpirit +cloxybot +wwproxy +bbqpirat +bv24 +lsolutions +kort_eu +kort_ru +mtprotolol
 
         fetchYandex()
         fetchKakfix()
@@ -199,6 +199,7 @@ final class SourcesFetcher: NSObject, ObservableObject {
         fetchLSolutions()
         fetchKortEU()
         fetchKortRU()
+        fetchMTProtoLol()
         for src in sources { loadWebSource(src) }
     }
 
@@ -312,6 +313,22 @@ final class SourcesFetcher: NSObject, ObservableObject {
             }
         }
         return result
+    }
+
+    // MARK: - MTProto.lol (LTE, static HTML, URLSession)
+
+    private func fetchMTProtoLol() {
+        Task {
+            do {
+                var req = URLRequest(url: URL(string: "https://mtproto.lol/proxies/")!)
+                req.setValue("curl/7.88.1", forHTTPHeaderField: "User-Agent")
+                req.timeoutInterval = 15
+                let (data, _) = try await URLSession.shared.data(for: req)
+                let html = String(data: data, encoding: .utf8) ?? ""
+                streamAppend(parseByHref(html, source: "MTProto.lol", networkType: .lte))
+            } catch {}
+            finish()
+        }
     }
 
     // MARK: - BV24 (static HTML, URLSession, Chrome UA)
