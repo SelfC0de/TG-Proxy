@@ -21,6 +21,7 @@ final class SourcesFetcher: NSObject, ObservableObject {
         let name: String
         let waitSeconds: Double
         let jsExtract: String
+        var networkType: NetworkType = .wifi
     }
 
     // Only JS-rendered sources here
@@ -175,9 +176,9 @@ final class SourcesFetcher: NSObject, ObservableObject {
         WebSource(url: "https://telegramvpn.org/ru/",
                   name: "TelegramVPN", waitSeconds: 2, jsExtract: tgvpnJS),
         WebSource(url: "https://sila-net.org/telegram-uskoritel-besplatno.html",
-                  name: "SilaNet", waitSeconds: 3, jsExtract: silajobJS),
+                  name: "SilaNet", waitSeconds: 3, jsExtract: silajobJS, networkType: .lte),
         WebSource(url: "https://nevpn.me/tg/",
-                  name: "NevPN", waitSeconds: 3, jsExtract: nevpnJS),
+                  name: "NevPN", waitSeconds: 3, jsExtract: nevpnJS, networkType: .lte),
         ]
     }
 
@@ -367,7 +368,7 @@ final class SourcesFetcher: NSObject, ObservableObject {
                 let (data, _) = try await URLSession.shared.data(for: req)
                 let html = String(data: data, encoding: .utf8) ?? ""
                 // tg:// links are embedded as plain strings in JS, not in href attributes
-                streamAppend(parseRawTG(html, source: "L-Solutions"))
+                streamAppend(parseRawTG(html, source: "L-Solutions", networkType: .lte))
             } catch {}
             finish()
         }
@@ -609,11 +610,13 @@ final class SourcesFetcher: NSObject, ObservableObject {
                                 let href = url.replacingOccurrences(of: "&amp;", with: "&")
                                 if var item = self.parseProxyURL(href, source: source.name) {
                                     item.countryName = obj["country"] ?? ""
+                                    item.networkType = source.networkType
                                     items.append(item)
                                 }
                             } else {
                                 let href = raw.replacingOccurrences(of: "&amp;", with: "&")
-                                if let item = self.parseProxyURL(href, source: source.name) {
+                                if var item = self.parseProxyURL(href, source: source.name) {
+                                    item.networkType = source.networkType
                                     items.append(item)
                                 }
                             }
