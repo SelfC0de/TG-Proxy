@@ -18,9 +18,8 @@ struct ProxiesView: View {
     @State private var searchText  = ""
     @State private var selectedCountry = "Все"
     @State private var selectedSort: ProxySort = .none
-    @State private var showFilters = false
+    @State private var networkTab: NetworkType = .wifi
 
-    // Notification pill queue
     @State private var toastMessage: String? = nil
     @State private var toastTask: Task<Void, Never>? = nil
 
@@ -32,20 +31,27 @@ struct ProxiesView: View {
                 headerBar
                     .padding(.top, 56)
 
-                // Search bar
+                // WiFi / LTE tab switcher
+                networkSwitcher
+                    .padding(.top, 10)
+                    .padding(.horizontal, 16)
+                    .opacity(appeared ? 1 : 0)
+                    .animation(.easeOut(duration: 0.3).delay(0.08), value: appeared)
+
+                // Search
                 searchBar
                     .padding(.horizontal, 16)
-                    .padding(.top, 10)
+                    .padding(.top, 8)
                     .opacity(appeared ? 1 : 0)
                     .animation(.easeOut(duration: 0.3).delay(0.1), value: appeared)
 
-                // Sort + filter pills
-                filterPills
+                // Country + sort row
+                controlRow
                     .padding(.top, 8)
                     .opacity(appeared ? 1 : 0)
                     .animation(.easeOut(duration: 0.3).delay(0.15), value: appeared)
 
-                // Ping progress bar
+                // Ping progress
                 if fetcher.isPinging && fetcher.pingTotal > 0 {
                     pingProgressBar
                         .padding(.horizontal, 16)
@@ -60,7 +66,7 @@ struct ProxiesView: View {
                 contentArea
             }
 
-            // Toast notification pill
+            // Toast
             if let msg = toastMessage {
                 VStack {
                     Spacer()
@@ -69,26 +75,85 @@ struct ProxiesView: View {
                         .foregroundColor(.white)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 9)
-                        .background(
-                            Capsule()
-                                .fill(Color(red: 0.13, green: 0.85, blue: 0.47).opacity(0.92))
-                        )
+                        .background(Capsule().fill(AppTheme.green.opacity(0.92)))
+                        .padding(.bottom, 110)
                         .transition(.asymmetric(
                             insertion: .opacity.combined(with: .offset(y: 12)),
                             removal:   .opacity.combined(with: .offset(y: 12))
                         ))
-                        .padding(.bottom, 110)
+                        .allowsHitTesting(false)
                 }
                 .ignoresSafeArea()
-                .allowsHitTesting(false)
             }
         }
+        .animation(.easeInOut(duration: 0.2), value: fetcher.isPinging)
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: toastMessage)
         .onAppear {
             withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) { appeared = true }
             if case .idle = fetcher.loadState { fetcher.loadAll() }
         }
         .sheet(item: $qrItem) { item in QRSheet(item: item) }
-        .animation(.easeInOut(duration: 0.2), value: fetcher.isPinging)
+    }
+
+    // MARK: - Network switcher
+
+    private var networkSwitcher: some View {
+        HStack(spacing: 0) {
+            networkTab(type: .wifi,
+                       icon: "antenna.radiowaves.left.and.right",
+                       label: "WiFi",
+                       count: wifiProxies.count)
+            networkTab(type: .lte,
+                       icon: "cellularbars",
+                       label: "LTE",
+                       count: lteProxies.count)
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(AppTheme.card)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.white.opacity(0.07), lineWidth: 0.5)
+                )
+        )
+    }
+
+    private func networkTab(type: NetworkType, icon: String, label: String, count: Int) -> some View {
+        let active = networkTab == type
+        return Button {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                networkTab = type
+                selectedCountry = "Все"
+                searchText = ""
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .medium))
+                Text(label)
+                    .font(.system(size: 14, weight: .semibold))
+                if count > 0 {
+                    Text("\(count)")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(active ? AppTheme.accent : .white.opacity(0.3))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule()
+                                .fill(active ? AppTheme.accent.opacity(0.18) : Color.white.opacity(0.06))
+                        )
+                }
+            }
+            .foregroundColor(active ? .white : .white.opacity(0.38))
+            .frame(maxWidth: .infinity)
+            .frame(height: 40)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(active ? AppTheme.surface : .clear)
+                    .padding(3)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Header
@@ -125,7 +190,6 @@ struct ProxiesView: View {
             Spacer()
 
             HStack(spacing: 10) {
-                // Ping all
                 Button { fetcher.pingAll() } label: {
                     Image(systemName: "antenna.radiowaves.left.and.right")
                         .font(.system(size: 15, weight: .medium))
@@ -139,7 +203,6 @@ struct ProxiesView: View {
                 .offset(y: appeared ? 0 : -8)
                 .animation(.spring(response: 0.45, dampingFraction: 0.8).delay(0.1), value: appeared)
 
-                // Refresh
                 RefreshButton { fetcher.loadAll() }
                     .frame(width: 36, height: 36)
                     .background(Circle().fill(AppTheme.surface))
@@ -188,38 +251,31 @@ struct ProxiesView: View {
         )
     }
 
-    // MARK: - Filter pills (sort + country)
+    // MARK: - Control row (country dropdown + sort pills)
 
-    private var filterPills: some View {
+    private var controlRow: some View {
         HStack(spacing: 8) {
-            // Country dropdown
             Menu {
                 Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                        selectedCountry = "Все"
-                    }
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { selectedCountry = "Все" }
                 } label: {
                     Label("Все страны", systemImage: selectedCountry == "Все" ? "checkmark" : "globe")
                 }
-                Divider()
+                if !availableCountries.isEmpty { Divider() }
                 ForEach(availableCountries, id: \.self) { country in
                     Button {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            selectedCountry = country
-                        }
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { selectedCountry = country }
                     } label: {
                         Label(country, systemImage: selectedCountry == country ? "checkmark" : "")
                     }
                 }
             } label: {
                 HStack(spacing: 5) {
-                    Image(systemName: "globe")
-                        .font(.system(size: 11, weight: .medium))
+                    Image(systemName: "globe").font(.system(size: 11, weight: .medium))
                     Text(selectedCountry == "Все" ? "Страна" : selectedCountry)
                         .font(.system(size: 12, weight: .medium))
                         .lineLimit(1)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 9, weight: .semibold))
+                    Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
                 }
                 .foregroundColor(selectedCountry == "Все" ? .white.opacity(0.5) : .white)
                 .padding(.horizontal, 12)
@@ -228,20 +284,19 @@ struct ProxiesView: View {
                     Capsule()
                         .fill(selectedCountry == "Все" ? AppTheme.card : AppTheme.accent.opacity(0.25))
                         .overlay(
-                            Capsule()
-                                .stroke(selectedCountry == "Все" ? Color.white.opacity(0.08) : AppTheme.accent.opacity(0.45), lineWidth: 0.5)
+                            Capsule().stroke(
+                                selectedCountry == "Все" ? Color.white.opacity(0.08) : AppTheme.accent.opacity(0.45),
+                                lineWidth: 0.5
+                            )
                         )
                 )
             }
 
-            // Sort pills: По умолчанию / Пинг
             HStack(spacing: 6) {
                 ForEach(ProxySort.allCases, id: \.self) { sort in
                     let active = selectedSort == sort
                     Button {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            selectedSort = sort
-                        }
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { selectedSort = sort }
                     } label: {
                         Text(sort.rawValue)
                             .font(.system(size: 12, weight: .medium))
@@ -252,8 +307,10 @@ struct ProxiesView: View {
                                 Capsule()
                                     .fill(active ? AppTheme.surface : .clear)
                                     .overlay(
-                                        Capsule()
-                                            .stroke(active ? Color.white.opacity(0.15) : Color.white.opacity(0.06), lineWidth: 0.5)
+                                        Capsule().stroke(
+                                            active ? Color.white.opacity(0.15) : Color.white.opacity(0.06),
+                                            lineWidth: 0.5
+                                        )
                                     )
                             )
                     }
@@ -308,7 +365,7 @@ struct ProxiesView: View {
         case .idle:
             Spacer()
         case .loading:
-            loadingPlaceholder
+            loadingView
         case .done:
             proxyList
         case .error(let msg):
@@ -316,7 +373,7 @@ struct ProxiesView: View {
         }
     }
 
-    private var loadingPlaceholder: some View {
+    private var loadingView: some View {
         VStack(spacing: 16) {
             Spacer()
             PulsingDot(color: AppTheme.accent)
@@ -360,23 +417,19 @@ struct ProxiesView: View {
                     .padding(.top, 60)
                 } else {
                     ForEach(Array(items.enumerated()), id: \.element.id) { i, item in
-                        ProxyRow(item: item, onPing: {
-                            fetcher.pingSingle(item)
-                        }, onQR: {
-                            qrItem = item
-                        }, onCopy: {
-                            UIPasteboard.general.string = item.tgURL
-                            showToast("Скопировано")
-                        })
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 3)
-                        .opacity(appeared ? 1 : 0)
-                        .offset(y: appeared ? 0 : 10)
-                        .animation(
-                            .spring(response: 0.45, dampingFraction: 0.8)
-                                .delay(Double(min(i, 20)) * 0.02),
-                            value: appeared
-                        )
+                        ProxyRow(item: item,
+                                 onPing:  { fetcher.pingSingle(item) },
+                                 onQR:    { qrItem = item },
+                                 onCopy:  { UIPasteboard.general.string = item.tgURL; showToast("Скопировано") })
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 3)
+                            .opacity(appeared ? 1 : 0)
+                            .offset(y: appeared ? 0 : 10)
+                            .animation(
+                                .spring(response: 0.45, dampingFraction: 0.8)
+                                    .delay(Double(min(i, 20)) * 0.02),
+                                value: appeared
+                            )
                     }
                 }
             }
@@ -384,15 +437,14 @@ struct ProxiesView: View {
             .padding(.bottom, 100)
         }
         .transition(.opacity.combined(with: .offset(y: 8)))
+        .id(networkTab) // force scroll reset on tab switch
     }
 
     // MARK: - Toast
 
     private func showToast(_ msg: String) {
         toastTask?.cancel()
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-            toastMessage = msg
-        }
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { toastMessage = msg }
         toastTask = Task {
             try? await Task.sleep(nanoseconds: 2_000_000_000)
             guard !Task.isCancelled else { return }
@@ -404,10 +456,16 @@ struct ProxiesView: View {
 
     // MARK: - Computed
 
-    private var filteredProxies: [ProxyItem] {
-        var list = fetcher.proxies.filter { $0.pingState != .failed }
+    private var wifiProxies: [ProxyItem] { fetcher.proxies.filter { $0.networkType == .wifi } }
+    private var lteProxies:  [ProxyItem] { fetcher.proxies.filter { $0.networkType == .lte  } }
 
-        // Search
+    private var activeProxies: [ProxyItem] {
+        networkTab == .wifi ? wifiProxies : lteProxies
+    }
+
+    private var filteredProxies: [ProxyItem] {
+        var list = activeProxies.filter { $0.pingState != .failed }
+
         if !searchText.isEmpty {
             let q = searchText.lowercased()
             list = list.filter {
@@ -417,12 +475,10 @@ struct ProxiesView: View {
             }
         }
 
-        // Country filter
         if selectedCountry != "Все" {
             list = list.filter { $0.countryName == selectedCountry }
         }
 
-        // Sort
         switch selectedSort {
         case .none: break
         case .ping:
@@ -434,13 +490,12 @@ struct ProxiesView: View {
                 default:             return false
                 }
             }
-
         }
         return list
     }
 
     private var availableCountries: [String] {
-        let all = fetcher.proxies.compactMap { $0.countryName.isEmpty ? nil : $0.countryName }
+        let all = activeProxies.compactMap { $0.countryName.isEmpty ? nil : $0.countryName }
         return Array(Set(all)).sorted()
     }
 
@@ -453,7 +508,6 @@ struct ProxiesView: View {
         return fetcher.isPinging ? AppTheme.accent : .white.opacity(0.55)
     }
 }
-
 
 // MARK: - Placeholder modifier
 
@@ -473,20 +527,17 @@ struct ProxyRow: View {
     let onPing: () -> Void
     let onQR: () -> Void
     let onCopy: () -> Void
-
     @State private var pressed = false
 
     var body: some View {
         HStack(spacing: 12) {
-            pingIndicator
-                .frame(width: 46, height: 46)
+            pingIndicator.frame(width: 46, height: 46)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.shortServer)
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(.white.opacity(0.88))
                     .lineLimit(1)
-
                 HStack(spacing: 6) {
                     Text(":\(item.port)")
                         .font(.system(size: 11))
@@ -501,74 +552,48 @@ struct ProxyRow: View {
             }
 
             Spacer()
-
             connectButton
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .background(rowBackground)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(AppTheme.card)
+                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.white.opacity(0.06), lineWidth: 0.5))
+        )
         .scaleEffect(pressed ? 0.97 : 1)
         .animation(.spring(response: 0.25, dampingFraction: 0.7), value: pressed)
         .contextMenu {
-            Button { onPing() } label: {
-                Label("Ping", systemImage: "antenna.radiowaves.left.and.right")
-            }
-            Button { onQR() } label: {
-                Label("QR-код", systemImage: "qrcode")
-            }
-            Button { onCopy() } label: {
-                Label("Копировать ссылку", systemImage: "doc.on.doc")
-            }
+            Button { onPing()  } label: { Label("Ping", systemImage: "antenna.radiowaves.left.and.right") }
+            Button { onQR()    } label: { Label("QR-код", systemImage: "qrcode") }
+            Button { onCopy()  } label: { Label("Копировать ссылку", systemImage: "doc.on.doc") }
             Divider()
             Button {
                 guard let url = URL(string: item.tgURL) else { return }
                 UIApplication.shared.open(url)
-            } label: {
-                Label("Подключить", systemImage: "paperplane.fill")
-            }
+            } label: { Label("Подключить", systemImage: "paperplane.fill") }
         } preview: {
-            contextPreview
-        }
-    }
-
-    private var contextPreview: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                Image(systemName: "network")
-                    .font(.system(size: 18))
-                    .foregroundColor(AppTheme.accent)
-                Text(item.shortServer)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.white)
-            }
-            HStack(spacing: 16) {
-                Label(":\(item.port)", systemImage: "point.3.connected.trianglepath.dotted")
-                    .font(.system(size: 12))
-                    .foregroundColor(.white.opacity(0.5))
-                if !item.countryName.isEmpty {
-                    Label(item.countryName, systemImage: "globe")
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 10) {
+                    Image(systemName: "network").font(.system(size: 18)).foregroundColor(AppTheme.accent)
+                    Text(item.shortServer).font(.system(size: 15, weight: .semibold)).foregroundColor(.white)
+                }
+                HStack(spacing: 16) {
+                    Label(":\(item.port)", systemImage: "point.3.connected.trianglepath.dotted")
+                        .font(.system(size: 12)).foregroundColor(.white.opacity(0.5))
+                    if !item.countryName.isEmpty {
+                        Label(item.countryName, systemImage: "globe")
+                            .font(.system(size: 12)).foregroundColor(.white.opacity(0.5))
+                    }
+                }
+                if case .done = item.pingState, let ms = item.pingMs {
+                    Label("\(ms) ms", systemImage: "speedometer")
                         .font(.system(size: 12))
-                        .foregroundColor(.white.opacity(0.5))
+                        .foregroundColor(ms < 150 ? AppTheme.green : ms < 400 ? AppTheme.amber : AppTheme.red)
                 }
             }
-            if case .done = item.pingState, let ms = item.pingMs {
-                Label("\(ms) ms", systemImage: "speedometer")
-                    .font(.system(size: 12))
-                    .foregroundColor(pingColor(ms))
-            }
+            .padding(16).frame(width: 260).background(AppTheme.card)
         }
-        .padding(16)
-        .frame(width: 260)
-        .background(AppTheme.card)
-    }
-
-    private var rowBackground: some View {
-        RoundedRectangle(cornerRadius: 14, style: .continuous)
-            .fill(AppTheme.card)
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.white.opacity(0.06), lineWidth: 0.5)
-            )
     }
 
     @ViewBuilder
@@ -583,7 +608,7 @@ struct ProxyRow: View {
             }
         case .done:
             let ms = item.pingMs ?? 9999
-            let c = pingColor(ms)
+            let c = ms < 150 ? AppTheme.green : ms < 400 ? AppTheme.amber : AppTheme.red
             pingRing(color: c, label: ms < 1000 ? "\(ms)" : ">1s", labelColor: c)
         case .failed:
             pingRing(color: AppTheme.red, label: "✕", labelColor: AppTheme.red)
@@ -593,14 +618,8 @@ struct ProxyRow: View {
     private func pingRing(color: Color, label: String, labelColor: Color) -> some View {
         ZStack {
             Circle().stroke(color.opacity(0.35), lineWidth: 1.5)
-            Text(label)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundColor(labelColor)
+            Text(label).font(.system(size: 10, weight: .semibold)).foregroundColor(labelColor)
         }
-    }
-
-    private func pingColor(_ ms: Int) -> Color {
-        ms < 150 ? AppTheme.green : ms < 400 ? AppTheme.amber : AppTheme.red
     }
 
     private var connectButton: some View {
@@ -616,10 +635,7 @@ struct ProxyRow: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(.white.opacity(0.7))
                 .frame(width: 34, height: 34)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(AppTheme.accent.opacity(0.18))
-                )
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(AppTheme.accent.opacity(0.18)))
         }
         .buttonStyle(.plain)
     }
@@ -636,58 +652,33 @@ struct QRSheet: View {
         ZStack {
             AppTheme.bg.ignoresSafeArea()
             VStack(spacing: 0) {
-                Capsule()
-                    .fill(Color.white.opacity(0.15))
-                    .frame(width: 36, height: 4)
-                    .padding(.top, 12)
-                    .padding(.bottom, 24)
-
+                Capsule().fill(Color.white.opacity(0.15)).frame(width: 36, height: 4)
+                    .padding(.top, 12).padding(.bottom, 24)
                 Text("QR-код прокси")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(.white)
-                    .opacity(appeared ? 1 : 0)
-                    .animation(.easeOut(duration: 0.3), value: appeared)
-
-                Text(item.shortServer)
-                    .font(.system(size: 13))
-                    .foregroundColor(.white.opacity(0.4))
-                    .padding(.top, 4)
-                    .opacity(appeared ? 1 : 0)
+                    .font(.system(size: 17, weight: .semibold)).foregroundColor(.white)
+                    .opacity(appeared ? 1 : 0).animation(.easeOut(duration: 0.3), value: appeared)
+                Text(item.shortServer).font(.system(size: 13)).foregroundColor(.white.opacity(0.4))
+                    .padding(.top, 4).opacity(appeared ? 1 : 0)
                     .animation(.easeOut(duration: 0.3).delay(0.05), value: appeared)
-
                 Spacer()
-
                 if let qr = generateQR(item.tgURL) {
-                    Image(uiImage: qr)
-                        .interpolation(.none)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 240, height: 240)
-                        .padding(20)
+                    Image(uiImage: qr).interpolation(.none).resizable().scaledToFit()
+                        .frame(width: 240, height: 240).padding(20)
                         .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Color.white))
-                        .scaleEffect(appeared ? 1 : 0.85)
-                        .opacity(appeared ? 1 : 0)
+                        .scaleEffect(appeared ? 1 : 0.85).opacity(appeared ? 1 : 0)
                         .animation(.spring(response: 0.45, dampingFraction: 0.75).delay(0.1), value: appeared)
                 }
-
                 Spacer()
-
                 VStack(spacing: 8) {
                     infoRow(label: "Сервер", value: item.shortServer)
                     infoRow(label: "Порт",   value: item.port)
-                    if !item.countryName.isEmpty {
-                        infoRow(label: "Страна", value: item.countryName)
-                    }
+                    if !item.countryName.isEmpty { infoRow(label: "Страна", value: item.countryName) }
                 }
                 .padding(16)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(AppTheme.card)
-                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.06), lineWidth: 0.5))
-                )
+                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(AppTheme.card)
+                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.06), lineWidth: 0.5)))
                 .padding(.horizontal, 24)
-                .opacity(appeared ? 1 : 0)
-                .offset(y: appeared ? 0 : 10)
+                .opacity(appeared ? 1 : 0).offset(y: appeared ? 0 : 10)
                 .animation(.spring(response: 0.45, dampingFraction: 0.8).delay(0.2), value: appeared)
 
                 HStack(spacing: 12) {
@@ -699,23 +690,17 @@ struct QRSheet: View {
                             Image(systemName: "paperplane.fill").font(.system(size: 14))
                             Text("Подключить").font(.system(size: 15, weight: .semibold))
                         }
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity).frame(height: 50)
+                        .foregroundColor(.white).frame(maxWidth: .infinity).frame(height: 50)
                         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(AppTheme.accent))
                     }
                     Button { dismiss() } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.white.opacity(0.5))
-                            .frame(width: 50, height: 50)
+                        Image(systemName: "xmark").font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.white.opacity(0.5)).frame(width: 50, height: 50)
                             .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(AppTheme.card))
                     }
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 16)
-                .padding(.bottom, 36)
-                .opacity(appeared ? 1 : 0)
-                .animation(.easeOut(duration: 0.3).delay(0.25), value: appeared)
+                .padding(.horizontal, 24).padding(.top, 16).padding(.bottom, 36)
+                .opacity(appeared ? 1 : 0).animation(.easeOut(duration: 0.3).delay(0.25), value: appeared)
             }
         }
         .onAppear { withAnimation { appeared = true } }
@@ -732,11 +717,10 @@ struct QRSheet: View {
     private func generateQR(_ string: String) -> UIImage? {
         let ctx = CIContext()
         let f = CIFilter.qrCodeGenerator()
-        f.message = Data(string.utf8)
-        f.correctionLevel = "M"
+        f.message = Data(string.utf8); f.correctionLevel = "M"
         guard let ci = f.outputImage else { return nil }
-        let scaled = ci.transformed(by: CGAffineTransform(scaleX: 10, y: 10))
-        guard let cg = ctx.createCGImage(scaled, from: scaled.extent) else { return nil }
+        let s = ci.transformed(by: CGAffineTransform(scaleX: 10, y: 10))
+        guard let cg = ctx.createCGImage(s, from: s.extent) else { return nil }
         return UIImage(cgImage: cg)
     }
 }

@@ -186,7 +186,7 @@ final class SourcesFetcher: NSObject, ObservableObject {
         loadState = .loading
         let sources = webSources
         // URLSession: yandex + kakfix + widum = 3; WKWebView sources = sources.count
-        pendingCount = sources.count + 9  // +yandex +kakfix +widum +soliSpirit +cloxybot +wwproxy +bbqpirat +bv24 +lsolutions
+        pendingCount = sources.count + 11  // +yandex +kakfix +widum +soliSpirit +cloxybot +wwproxy +bbqpirat +bv24 +lsolutions +kort_eu +kort_ru
 
         fetchYandex()
         fetchKakfix()
@@ -197,6 +197,8 @@ final class SourcesFetcher: NSObject, ObservableObject {
         fetchBBQPirat()
         fetchBV24()
         fetchLSolutions()
+        fetchKortEU()
+        fetchKortRU()
         for src in sources { loadWebSource(src) }
     }
 
@@ -263,6 +265,55 @@ final class SourcesFetcher: NSObject, ObservableObject {
         }
     }
 
+    // MARK: - Kort0881 EU (WiFi, plain tg:// lines)
+
+    private func fetchKortEU() {
+        Task {
+            do {
+                var req = URLRequest(url: URL(string: "https://raw.githubusercontent.com/kort0881/telegram-proxy-collector/refs/heads/main/proxy_eu.txt")!)
+                req.setValue("curl/7.88", forHTTPHeaderField: "User-Agent")
+                req.timeoutInterval = 15
+                let (data, _) = try await URLSession.shared.data(for: req)
+                let text = String(data: data, encoding: .utf8) ?? ""
+                streamAppend(parseTextLines(text, source: "EU List", networkType: .wifi))
+            } catch {}
+            finish()
+        }
+    }
+
+    // MARK: - Kort0881 RU (LTE, plain tg:// lines)
+
+    private func fetchKortRU() {
+        Task {
+            do {
+                var req = URLRequest(url: URL(string: "https://raw.githubusercontent.com/kort0881/telegram-proxy-collector/refs/heads/main/proxy_ru.txt")!)
+                req.setValue("curl/7.88", forHTTPHeaderField: "User-Agent")
+                req.timeoutInterval = 15
+                let (data, _) = try await URLSession.shared.data(for: req)
+                let text = String(data: data, encoding: .utf8) ?? ""
+                streamAppend(parseTextLines(text, source: "RU List", networkType: .lte))
+            } catch {}
+            finish()
+        }
+    }
+
+    private func parseTextLines(_ text: String, source: String, networkType: NetworkType) -> [ProxyItem] {
+        var result: [ProxyItem] = []
+        for line in text.components(separatedBy: .newlines) {
+            let raw = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !raw.isEmpty, !raw.hasPrefix("#") else { continue }
+            let tg = raw
+                .replacingOccurrences(of: "https://t.me/proxy?", with: "tg://proxy?")
+                .replacingOccurrences(of: "http://t.me/proxy?",  with: "tg://proxy?")
+            guard tg.hasPrefix("tg://proxy?") else { continue }
+            if var item = parseProxyURL(tg, source: source) {
+                item.networkType = networkType
+                result.append(item)
+            }
+        }
+        return result
+    }
+
     // MARK: - BV24 (static HTML, URLSession, Chrome UA)
 
     private func fetchBV24() {
@@ -274,7 +325,7 @@ final class SourcesFetcher: NSObject, ObservableObject {
                 req.timeoutInterval = 15
                 let (data, _) = try await URLSession.shared.data(for: req)
                 let html = String(data: data, encoding: .utf8) ?? ""
-                streamAppend(parseByHref(html, source: "BV24"))
+                streamAppend(parseByHref(html, source: "BV24", networkType: .lte))
             } catch {}
             finish()
         }
@@ -571,26 +622,32 @@ final class SourcesFetcher: NSObject, ObservableObject {
 
     // MARK: - Helpers
 
-    private func parseRawTG(_ html: String, source: String) -> [ProxyItem] {
+    private func parseRawTG(_ html: String, source: String, networkType: NetworkType = .wifi) -> [ProxyItem] {
         var result: [ProxyItem] = []
         guard let re = try? NSRegularExpression(pattern: #"tg://proxy\?[^\s"'<>\\]+"#) else { return [] }
         let ns = html as NSString
         for m in re.matches(in: html, range: NSRange(location: 0, length: ns.length)) {
             let href = ns.substring(with: m.range)
                 .replacingOccurrences(of: "&amp;", with: "&")
-            if let item = parseProxyURL(href, source: source) { result.append(item) }
+            if var item = parseProxyURL(href, source: source) {
+                item.networkType = networkType
+                result.append(item)
+            }
         }
         return result
     }
 
-    private func parseByHref(_ html: String, source: String) -> [ProxyItem] {
+    private func parseByHref(_ html: String, source: String, networkType: NetworkType = .wifi) -> [ProxyItem] {
         var result: [ProxyItem] = []
         guard let re = try? NSRegularExpression(pattern: "href=\"(tg://proxy\\?[^\"]+)\"") else { return [] }
         let ns = html as NSString
         for m in re.matches(in: html, range: NSRange(location: 0, length: ns.length)) {
             let href = ns.substring(with: m.range(at: 1))
                 .replacingOccurrences(of: "&amp;", with: "&")
-            if let item = parseProxyURL(href, source: source) { result.append(item) }
+            if var item = parseProxyURL(href, source: source) {
+                item.networkType = networkType
+                result.append(item)
+            }
         }
         return result
     }

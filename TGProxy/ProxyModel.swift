@@ -1,11 +1,17 @@
 import Foundation
 
+enum NetworkType: String, Equatable {
+    case wifi = "WiFi"
+    case lte  = "LTE"
+}
+
 struct ProxyItem: Identifiable, Equatable {
     let id = UUID()
     let server: String
     let port: String
     let tgURL: String
     let sourceName: String
+    var networkType: NetworkType = .wifi
     var countryName: String = ""
     var countryCode: String = ""
     var pingMs: Int? = nil
