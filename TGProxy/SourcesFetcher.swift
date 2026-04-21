@@ -94,6 +94,19 @@ final class SourcesFetcher: NSObject, ObservableObject {
         })()
         """
 
+        let telproxyJS = """
+
+        (function(){
+            var r=[];
+            var links=document.querySelectorAll('a[href]');
+            for(var i=0;i<links.length;i++){
+                var h=links[i].getAttribute('href');
+                if(h&&h.indexOf('tg://proxy')===0) r.push(h);
+            }
+            return JSON.stringify(r);
+        })()
+        """
+
         let nevpnJS = """
 
         (function(){
@@ -179,6 +192,8 @@ final class SourcesFetcher: NSObject, ObservableObject {
                   name: "SilaNet", waitSeconds: 3, jsExtract: silajobJS, networkType: .lte),
         WebSource(url: "https://nevpn.me/tg/",
                   name: "NevPN", waitSeconds: 3, jsExtract: nevpnJS, networkType: .lte),
+        WebSource(url: "https://telproxy.com/luchshie-proksi-telegram/",
+                  name: "TelProxy", waitSeconds: 4, jsExtract: telproxyJS, networkType: .lte),
         ]
     }
 
