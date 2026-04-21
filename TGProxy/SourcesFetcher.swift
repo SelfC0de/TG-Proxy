@@ -189,13 +189,14 @@ final class SourcesFetcher: NSObject, ObservableObject {
         loadState = .loading
         let sources = webSources
         // URLSession: yandex + kakfix + widum = 3; WKWebView sources = sources.count
-        pendingCount = sources.count + 12  // +yandex +kakfix +widum +soliSpirit +cloxybot +wwproxy +bbqpirat +bv24 +lsolutions +kort_eu +kort_ru +mtprotolol
+        pendingCount = sources.count + 13  // +yandex +kakfix +widum +soliSpirit +cloxybot +wwproxy +bbqpirat +bv24 +lsolutions +kort_eu +kort_ru +mtprotolol +cloxybot_lte
 
         fetchYandex()
         fetchKakfix()
         fetchWidum()
         fetchSoliSpirit()
         fetchCloxybot()
+        fetchCloxybotLTE()
         fetchWWProxy()
         fetchBBQPirat()
         fetchBV24()
@@ -436,6 +437,22 @@ final class SourcesFetcher: NSObject, ObservableObject {
                 let (data, _) = try await URLSession.shared.data(for: req)
                 let html = String(data: data, encoding: .utf8) ?? ""
                 streamAppend(parseByHref(html, source: "Cloxybot"))
+            } catch {}
+            finish()
+        }
+    }
+
+    // MARK: - Cloxybot LTE
+
+    private func fetchCloxybotLTE() {
+        Task {
+            do {
+                var req = URLRequest(url: URL(string: "https://cloxybot.ru/proxy")!)
+                req.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)", forHTTPHeaderField: "User-Agent")
+                req.timeoutInterval = 15
+                let (data, _) = try await URLSession.shared.data(for: req)
+                let html = String(data: data, encoding: .utf8) ?? ""
+                streamAppend(parseByHref(html, source: "Cloxybot", networkType: .lte))
             } catch {}
             finish()
         }
