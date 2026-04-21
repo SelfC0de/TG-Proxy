@@ -204,13 +204,12 @@ final class SourcesFetcher: NSObject, ObservableObject {
         loadState = .loading
         let sources = webSources
         // URLSession: yandex + kakfix + widum = 3; WKWebView sources = sources.count
-        pendingCount = sources.count + 14  // ...+esimpson
+        pendingCount = sources.count + 13  // excludes WiFi-only cloxybot duplicate
 
         fetchYandex()
         fetchKakfix()
         fetchWidum()
         fetchSoliSpirit()
-        fetchCloxybot()
         fetchCloxybotLTE()
         fetchESimpson()
         fetchWWProxy()
@@ -443,20 +442,6 @@ final class SourcesFetcher: NSObject, ObservableObject {
     }
 
     // MARK: - Cloxybot (static HTML, URLSession)
-
-    private func fetchCloxybot() {
-        Task {
-            do {
-                var req = URLRequest(url: URL(string: "https://cloxybot.ru/proxy")!)
-                req.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)", forHTTPHeaderField: "User-Agent")
-                req.timeoutInterval = 15
-                let (data, _) = try await URLSession.shared.data(for: req)
-                let html = String(data: data, encoding: .utf8) ?? ""
-                streamAppend(parseByHref(html, source: "Cloxybot"))
-            } catch {}
-            finish()
-        }
-    }
 
     // MARK: - eSimpsonConnection Telegram channel (LTE, URLSession)
     // Fetches https://t.me/s/eSimpsonConnection, finds last N posts with proxy links,
