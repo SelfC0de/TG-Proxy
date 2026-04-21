@@ -231,10 +231,10 @@ final class SourcesFetcher: NSObject, ObservableObject {
         if networkType == .lte  || networkType == nil { isPingingLte  = true }
         pingProgress = 0
         pingTotal = items.count
-        let items = items
+        let itemsToPin = items
         Task {
             await withTaskGroup(of: (UUID, Int?).self) { group in
-                for item in items {
+                for item in itemsToPin {
                     group.addTask { [weak self] in
                         guard let self else { return (item.id, nil) }
                         await MainActor.run {

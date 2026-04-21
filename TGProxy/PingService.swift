@@ -118,7 +118,7 @@ private final class PingDelegate: NSObject,
     static let shared = PingDelegate()
 
     // Accept any TLS cert (MTProto servers often use self-signed)
-    func urlSession(_ session: URLSession,
+    nonisolated func urlSession(_ session: URLSession,
                     didReceive challenge: URLAuthenticationChallenge,
                     completionHandler: @escaping @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
         if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
