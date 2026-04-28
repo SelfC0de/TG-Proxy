@@ -204,7 +204,7 @@ final class SourcesFetcher: NSObject, ObservableObject {
         loadState = .loading
         let sources = webSources
         // URLSession: yandex + kakfix + widum = 3; WKWebView sources = sources.count
-        pendingCount = sources.count + 13  // excludes WiFi-only cloxybot duplicate
+        pendingCount = sources.count + 15  // +telegramproxy +klar
 
         fetchYandex()
         fetchKakfix()
@@ -212,6 +212,8 @@ final class SourcesFetcher: NSObject, ObservableObject {
         fetchSoliSpirit()
         fetchCloxybotLTE()
         fetchESimpson()
+        fetchTelegramProxyClick()
+        fetchKlarIcu()
         fetchWWProxy()
         fetchBBQPirat()
         fetchBV24()
@@ -442,6 +444,52 @@ final class SourcesFetcher: NSObject, ObservableObject {
     }
 
     // MARK: - Cloxybot (static HTML, URLSession)
+
+    // MARK: - TelegramProxy.click (WiFi=proxy1, LTE=proxy2)
+
+    private func fetchTelegramProxyClick() {
+        Task {
+            do {
+                var req = URLRequest(url: URL(string: "https://telegramproxy.click/blog/proksi-dlya-telegram-besplatno/")!)
+                req.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+                req.setValue("text/html,application/xhtml+xml", forHTTPHeaderField: "Accept")
+                req.timeoutInterval = 15
+                let (data, _) = try await URLSession.shared.data(for: req)
+                let html = String(data: data, encoding: .utf8) ?? ""
+                // First href → WiFi, second href → LTE
+                guard let re = try? NSRegularExpression(pattern: #"href="(tg://proxy\?[^"]+)""#) else { finish(); return }
+                let ns = html as NSString
+                let matches = re.matches(in: html, range: NSRange(location: 0, length: ns.length))
+                var items: [ProxyItem] = []
+                for (i, m) in matches.enumerated() {
+                    let href = ns.substring(with: m.range(at: 1)).replacingOccurrences(of: "&amp;", with: "&")
+                    if var item = parseProxyURL(href, source: "TGProxyClick") {
+                        item.networkType = i == 0 ? .wifi : .lte
+                        items.append(item)
+                    }
+                }
+                streamAppend(items)
+            } catch {}
+            finish()
+        }
+    }
+
+    // MARK: - Klar.icu (LTE, all proxies)
+
+    private func fetchKlarIcu() {
+        Task {
+            do {
+                var req = URLRequest(url: URL(string: "https://klar.icu/proxy")!)
+                req.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+                req.setValue("text/html,application/xhtml+xml", forHTTPHeaderField: "Accept")
+                req.timeoutInterval = 15
+                let (data, _) = try await URLSession.shared.data(for: req)
+                let html = String(data: data, encoding: .utf8) ?? ""
+                streamAppend(parseByHref(html, source: "Klar", networkType: .lte))
+            } catch {}
+            finish()
+        }
+    }
 
     // MARK: - eSimpsonConnection Telegram channel (LTE, URLSession)
     // Fetches https://t.me/s/eSimpsonConnection, finds last N posts with proxy links,
